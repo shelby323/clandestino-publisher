@@ -1,0 +1,3 @@
+aiogram
+feedparser
+vk_api
