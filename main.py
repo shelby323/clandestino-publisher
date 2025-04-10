@@ -27,6 +27,7 @@ async def start_handler(message: Message):
     kb.button(text="🎯 Эстетика", callback_data="type:aesthetic")
     kb.button(text="📰 Новости", callback_data="type:news")
     kb.button(text="✨ Факт о знаменитости", callback_data="type:celebrity_fact")
+    kb.button(text="📖 История о звезде", callback_data="type:celebrity_story")
     kb.adjust(2)
     await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=kb.as_markup())
 
@@ -38,7 +39,9 @@ async def generate_posts(callback: CallbackQuery):
     elif post_type == "aesthetic":
         await callback.message.answer("Посты с эстетикой будут реализованы позже.")
     elif post_type == "celebrity_fact":
-        await callback.message.answer("Посты с фактами о знаменитостях будут реализованы позже.")
+        await send_celebrity_fact(callback.message)
+    elif post_type == "celebrity_story":
+        await send_celebrity_story(callback.message)
     await callback.answer()
 
 def clean_html(text):
@@ -59,10 +62,10 @@ async def send_news(message: Message):
     for url in urls:
         feed = feedparser.parse(url)
         for entry in feed.entries:
-            if entry.id not in USED_ENTRIES:
+            if entry.id not in USED_ENTRIES and any(kw in entry.title.lower() for kw in ["звезда", "мода", "стиль", "красота", "лук", "celebrity", "луки"]):
                 entries.append(entry)
     if not entries:
-        await message.answer("Нет новых новостей.")
+        await message.answer("Нет новых подходящих новостей.")
         return
     random.shuffle(entries)
     latest = entries[0]
@@ -118,6 +121,24 @@ async def post_to_vk(message: Message):
                 }
                 await session.post("https://api.vk.com/method/wall.post", data=payload)
                 break
+
+async def send_celebrity_fact(message: Message):
+    facts = [
+        "🧠 В юности Киану Ривз мечтал стать хоккеистом, а не актёром.",
+        "💄 Одри Хепбёрн носила одежду только от Givenchy — так родилась мода на коллаборации со звёздами.",
+        "👑 Рианна стала первой женщиной-исполнительницей, открывшей модный дом Fenty под крылом LVMH."
+    ]
+    fact = random.choice(facts)
+    await message.answer(fact)
+
+async def send_celebrity_story(message: Message):
+    stories = [
+        "💋 Марлен Дитрих отказалась от голливудских стереотипов и ввела в моду мужские костюмы на женщинах.",
+        "📸 Вивьен Вествуд — королева панк-эстетики, доказала, что стиль — это вызов, а не компромисс.",
+        "🔥 Бейонсе когда-то проиграла кастинг на роль в Disney, а теперь диктует стандарты моды и поп-культуры."
+    ]
+    story = random.choice(stories)
+    await message.answer(story)
 
 async def main():
     logging.basicConfig(level=logging.INFO)
