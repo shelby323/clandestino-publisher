@@ -9,7 +9,6 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message, InputMediaPhoto, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
-from aiogram.filters import Text
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
 from bs4 import BeautifulSoup
@@ -39,9 +38,9 @@ async def start_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
     await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+    await message.answer("Меню доступно ниже", reply_markup=persistent_keyboard)
 
-@router.message(Text(text="меню"))
-@router.message(Text(text="📋 Меню"))
+@router.message(lambda m: m.text.lower() in ["меню", "/menu", "📋 меню"])
 async def menu_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
@@ -90,8 +89,8 @@ async def fetch_celebrity_facts():
         async with session.get(url) as response:
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
-            facts = soup.find_all('li')
-            return [clean_html(fact.get_text()) for fact in facts if len(fact.get_text()) > 40]
+            facts = soup.select(".post-content li") or soup.find_all('li')
+            return [clean_html(f.get_text()) for f in facts if len(f.get_text()) > 40]
 
 async def fetch_wiki_quote():
     url = "https://en.wikiquote.org/wiki/Special:Random"
@@ -118,14 +117,13 @@ async def send_news(message: Message):
     for url in urls:
         feed = feedparser.parse(url)
         for entry in feed.entries:
-            if entry.id not in USED_ENTRIES and any(kw in entry.title.lower() for kw in ["звезда", "мода", "стиль", "красота", "лук", "celebrity", "луки"]):
+            if any(kw in entry.title.lower() for kw in ["звезда", "мода", "стиль", "красота", "лук", "celebrity", "луки"]):
                 entries.append(entry)
     if not entries:
         await message.answer("Нет новых подходящих новостей.")
         return
     random.shuffle(entries)
     latest = entries[0]
-    USED_ENTRIES.add(latest.id)
 
     title = clean_html(latest.get("title", ""))
     summary = clean_html(latest.get("summary", ""))
