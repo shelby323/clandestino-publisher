@@ -90,7 +90,7 @@ async def fetch_celebrity_facts():
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
             facts = soup.select(".post-content li") or soup.find_all('li')
-            return [clean_html(f.get_text()) for f in facts if len(f.get_text()) > 40]
+            return [clean_html(f.get_text()) for f in facts if len(f.get_text()) > 20]
 
 async def fetch_wiki_quote():
     url = "https://en.wikiquote.org/wiki/Special:Random"
@@ -100,7 +100,7 @@ async def fetch_wiki_quote():
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
             quotes = soup.select('ul li')
-            return [q.get_text() for q in quotes if len(q.get_text()) > 40][:5]
+            return [q.get_text() for q in quotes if len(q.get_text()) > 30][:5]
 
 async def send_news(message: Message):
     urls = [
@@ -117,7 +117,8 @@ async def send_news(message: Message):
     for url in urls:
         feed = feedparser.parse(url)
         for entry in feed.entries:
-            if any(kw in entry.title.lower() for kw in ["звезда", "мода", "стиль", "красота", "лук", "celebrity", "луки"]):
+            full_text = f"{entry.title.lower()} {entry.get('summary', '').lower()}"
+            if any(kw in full_text for kw in ["звезда", "мода", "стиль", "лук", "образ", "красота", "fashion", "celebrity"]):
                 entries.append(entry)
     if not entries:
         await message.answer("Нет новых подходящих новостей.")
