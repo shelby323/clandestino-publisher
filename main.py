@@ -3,7 +3,7 @@ import os
 import random
 import re
 import feedparser
-from aiogram import Bot, Dispatcher, types, Router
+from aiogram import Bot, Dispatcher, types, Router, F
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message, InputMediaPhoto, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
@@ -44,11 +44,13 @@ async def start_handler(message: Message):
     await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
     await message.answer("Меню доступно ниже", reply_markup=persistent_keyboard)
 
-@router.message(lambda m: m.text.lower() in ["меню", "/menu", "📋 меню"])
+@router.message()
 async def menu_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
-    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+    text = message.text.lower().strip()
+    if text in ["меню", "/menu", "📋 меню"]:
+        await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
 
 @router.callback_query()
 async def callback_handler(callback: CallbackQuery):
@@ -125,4 +127,3 @@ async def send_celebrity_story(message: Message):
 
 async def post_to_vk(message: Message):
     await message.answer("Функция публикации в VK будет реализована позже.")
-
