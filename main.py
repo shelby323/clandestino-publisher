@@ -12,7 +12,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
 from bs4 import BeautifulSoup
-import openai
+from openai import AsyncOpenAI
 
 BOT_TOKEN = os.getenv("API_TOKEN")
 VK_TOKEN = os.getenv("VK_TOKEN")
@@ -23,7 +23,7 @@ OWNER_IDS = {321069928, 5677874594}
 USED_ENTRIES = set()
 router = Router()
 
-openai.api_key = OPENAI_API_KEY
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 menu_keyboard = InlineKeyboardBuilder()
 menu_keyboard.button(text="🎯 Эстетика", callback_data="type:aesthetic")
@@ -109,7 +109,7 @@ async def fetch_wiki_quote():
 
 async def rewrite_text_gpt(title: str, summary: str) -> str:
     prompt = f"Сделай короткий, дерзкий и цепляющий пост по заголовку '{title}' и краткому содержанию '{summary}' в стиле модного паблика о знаменитостях. Добавь иронии и хештегов."
-    response = await openai.ChatCompletion.acreate(
+    response = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}]
     )
