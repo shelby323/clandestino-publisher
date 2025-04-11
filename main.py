@@ -12,13 +12,18 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
 from bs4 import BeautifulSoup
+from openai import AsyncOpenAI
 
 BOT_TOKEN = os.getenv("API_TOKEN")
 VK_TOKEN = os.getenv("VK_TOKEN")
 VK_GROUP_ID = os.getenv("VK_GROUP_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 OWNER_IDS = {321069928, 5677874594}
 USED_ENTRIES = set()
 router = Router()
+
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 menu_keyboard = InlineKeyboardBuilder()
 menu_keyboard.button(text="🎯 Эстетика", callback_data="type:aesthetic")
@@ -102,6 +107,14 @@ async def fetch_wiki_quote():
             quotes = soup.select('ul li')
             return [q.get_text() for q in quotes if len(q.get_text()) > 30][:5]
 
+async def rewrite_text_gpt(title: str, summary: str) -> str:
+    prompt = f"Сделай короткий, дерзкий и цепляющий пост по заголовку '{title}' и краткому содержанию '{summary}' в стиле модного паблика о знаменитостях. Добавь иронии и хештегов."
+    response = await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content.strip()
+
 async def send_news(message: Message):
     urls = [
         "https://www.gq.ru/rss/all",
@@ -128,7 +141,7 @@ async def send_news(message: Message):
 
     title = clean_html(latest.get("title", ""))
     summary = clean_html(latest.get("summary", ""))
-    text = f"<b>{title}</b>\n\n{summary}\n\n#новости #лакшери"
+    text = await rewrite_text_gpt(title, summary)
 
     query = title.split()[0] + " fashion"
     images = await fetch_pinterest_images(query)
