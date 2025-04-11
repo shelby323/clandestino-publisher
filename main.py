@@ -76,15 +76,17 @@ async def send_news(message: Message):
     text = f"<b>{title}</b>\n\n{summary}\n\n#новости #лакшери"
 
     images = []
-    if "media_content" in latest:
-        for media in latest.media_content[:6]:
-            if "url" in media:
-                images.append(media["url"])
-    elif "links" in latest:
+    media_fields = ["media_content", "media_thumbnail"]
+    for field in media_fields:
+        if field in latest:
+            for media in latest[field][:6]:
+                if "url" in media:
+                    images.append(media["url"])
+    if not images and "links" in latest:
         for link_info in latest.links:
             if link_info.get("type", "").startswith("image/"):
                 images.append(link_info["href"])
-        images = images[:6]
+    images = images[:6]
 
     await message.answer("Пост готов к публикации:")
     if images:
@@ -124,21 +126,39 @@ async def post_to_vk(message: Message):
 
 async def send_celebrity_fact(message: Message):
     facts = [
-        "🧠 В юности Киану Ривз мечтал стать хоккеистом, а не актёром.",
-        "💄 Одри Хепбёрн носила одежду только от Givenchy — так родилась мода на коллаборации со звёздами.",
-        "👑 Рианна стала первой женщиной-исполнительницей, открывшей модный дом Fenty под крылом LVMH."
+        {
+            "text": "🧠 В юности Киану Ривз мечтал стать хоккеистом, а не актёром.",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/7/79/Keanu_Reeves_2013.jpg"
+        },
+        {
+            "text": "💄 Одри Хепбёрн носила одежду только от Givenchy — так родилась мода на коллаборации со звёздами.",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/e/e8/Audrey_Hepburn_1956.jpg"
+        },
+        {
+            "text": "👑 Рианна стала первой женщиной-исполнительницей, открывшей модный дом Fenty под крылом LVMH.",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Rihanna_2018.png"
+        }
     ]
     fact = random.choice(facts)
-    await message.answer(fact)
+    await message.answer_photo(photo=fact["image"], caption=fact["text"])
 
 async def send_celebrity_story(message: Message):
     stories = [
-        "💋 Марлен Дитрих отказалась от голливудских стереотипов и ввела в моду мужские костюмы на женщинах.",
-        "📸 Вивьен Вествуд — королева панк-эстетики, доказала, что стиль — это вызов, а не компромисс.",
-        "🔥 Бейонсе когда-то проиграла кастинг на роль в Disney, а теперь диктует стандарты моды и поп-культуры."
+        {
+            "text": "💋 Марлен Дитрих отказалась от голливудских стереотипов и ввела в моду мужские костюмы на женщинах.",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/4/41/Marlene_Dietrich_%281930%29.jpg"
+        },
+        {
+            "text": "📸 Вивьен Вествуд — королева панк-эстетики, доказала, что стиль — это вызов, а не компромисс.",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/9/93/Vivienne_Westwood_2008.jpg"
+        },
+        {
+            "text": "🔥 Бейонсе когда-то проиграла кастинг на роль в Disney, а теперь диктует стандарты моды и поп-культуры.",
+            "image": "https://upload.wikimedia.org/wikipedia/commons/1/10/Beyonce_2011.jpg"
+        }
     ]
     story = random.choice(stories)
-    await message.answer(story)
+    await message.answer_photo(photo=story["image"], caption=story["text"])
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -146,6 +166,9 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
 
 if __name__ == "__main__":
     asyncio.run(main())
