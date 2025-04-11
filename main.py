@@ -24,12 +24,14 @@ OWNER_IDS = {321069928, 5677874594}
 USED_ENTRIES = set()
 router = Router()
 
-menu_keyboard = InlineKeyboardBuilder()
-menu_keyboard.button(text="🎯 Эстетика", callback_data="type:aesthetic")
-menu_keyboard.button(text="📰 Новости", callback_data="type:news")
-menu_keyboard.button(text="✨ Факт о знаменитости", callback_data="type:celebrity_fact")
-menu_keyboard.button(text="📖 История о звезде", callback_data="type:celebrity_story")
-menu_keyboard.adjust(2)
+def get_menu_keyboard():
+    keyboard = InlineKeyboardBuilder()
+    keyboard.button(text="🎯 Эстетика", callback_data="type:aesthetic")
+    keyboard.button(text="📰 Новости", callback_data="type:news")
+    keyboard.button(text="✨ Факт о знаменитости", callback_data="type:celebrity_fact")
+    keyboard.button(text="📖 История о звезде", callback_data="type:celebrity_story")
+    keyboard.adjust(2)
+    return keyboard.as_markup()
 
 persistent_keyboard = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="📋 Меню")]],
@@ -41,7 +43,7 @@ def clean_html(text):
     return re.sub(r'<[^>]*>', '', text).strip()
 
 async def send_menu(message: Message):
-    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=get_menu_keyboard())
 
 @router.message(Command("start"))
 async def start_handler(message: Message):
@@ -50,14 +52,11 @@ async def start_handler(message: Message):
     await send_menu(message)
     await message.answer("Меню доступно ниже", reply_markup=persistent_keyboard)
 
-@router.message()
+@router.message(F.text.lower().contains("меню"))
 async def menu_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
-    user_input = message.text.strip().lower()
-    print(f"\U0001F4E5 Получено сообщение: {user_input}")
-    if "меню" in user_input:
-        await send_menu(message)
+    await send_menu(message)
 
 @router.callback_query()
 async def callback_handler(callback: CallbackQuery):
@@ -131,3 +130,4 @@ async def send_celebrity_story(message: Message):
 
 async def post_to_vk(message: Message):
     await message.answer("Функция публикации в VK будет реализована позже.")
+
