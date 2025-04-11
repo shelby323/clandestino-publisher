@@ -9,7 +9,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message, InputMediaPhoto, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
-from aiogram.filters import Text
+from aiogram.filters.text import Text
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
 from bs4 import BeautifulSoup
@@ -195,6 +195,10 @@ async def main():
     await bot.set_my_commands([types.BotCommand(command="start", description="Перезапустить бота")])
     await bot.set_chat_menu_button(menu_button=types.MenuButtonCommands())
     await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 
 if __name__ == "__main__":
     asyncio.run(main())
