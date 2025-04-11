@@ -11,6 +11,7 @@ from aiogram.types import Message, InputMediaPhoto, CallbackQuery
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
+from bs4 import BeautifulSoup
 
 BOT_TOKEN = os.getenv("API_TOKEN")
 VK_TOKEN = os.getenv("VK_TOKEN")
@@ -47,6 +48,37 @@ async def generate_posts(callback: CallbackQuery):
 def clean_html(text):
     return re.sub(r'<[^>]*>', '', text).strip()
 
+async def fetch_pinterest_images(query, limit=3):
+    search_url = f"https://www.pinterest.com/search/pins/?q={query}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(search_url) as response:
+            html = await response.text()
+            soup = BeautifulSoup(html, 'html.parser')
+            imgs = soup.find_all('img')
+            image_urls = [img.get('src') for img in imgs if img.get('src') and '236x' in img.get('src')]
+            return image_urls[:limit]
+
+async def fetch_celebrity_facts():
+    url = "https://www.factinate.com/people/"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(url) as response:
+            html = await response.text()
+            soup = BeautifulSoup(html, 'html.parser')
+            facts = soup.find_all('li')
+            return [clean_html(fact.get_text()) for fact in facts if len(fact.get_text()) > 50]
+
+async def fetch_wiki_quote():
+    url = "https://en.wikiquote.org/wiki/Special:Random"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(url, allow_redirects=True) as response:
+            html = await response.text()
+            soup = BeautifulSoup(html, 'html.parser')
+            quotes = soup.select('ul li')
+            return [q.get_text() for q in quotes if len(q.get_text()) > 40][:5]
+
 async def send_news(message: Message):
     urls = [
         "https://www.gq.ru/rss/all",
@@ -75,18 +107,8 @@ async def send_news(message: Message):
     summary = clean_html(latest.get("summary", ""))
     text = f"<b>{title}</b>\n\n{summary}\n\n#новости #лакшери"
 
-    images = []
-    media_fields = ["media_content", "media_thumbnail"]
-    for field in media_fields:
-        if field in latest:
-            for media in latest[field][:6]:
-                if "url" in media:
-                    images.append(media["url"])
-    if not images and "links" in latest:
-        for link_info in latest.links:
-            if link_info.get("type", "").startswith("image/"):
-                images.append(link_info["href"])
-    images = images[:6]
+    query = title.split()[0] + " fashion"
+    images = await fetch_pinterest_images(query)
 
     await message.answer("Пост готов к публикации:")
     if images:
@@ -125,40 +147,30 @@ async def post_to_vk(message: Message):
                 break
 
 async def send_celebrity_fact(message: Message):
-    facts = [
-        {
-            "text": "🧠 В юности Киану Ривз мечтал стать хоккеистом, а не актёром.",
-            "image": "https://upload.wikimedia.org/wikipedia/commons/7/79/Keanu_Reeves_2013.jpg"
-        },
-        {
-            "text": "💄 Одри Хепбёрн носила одежду только от Givenchy — так родилась мода на коллаборации со звёздами.",
-            "image": "https://upload.wikimedia.org/wikipedia/commons/e/e8/Audrey_Hepburn_1956.jpg"
-        },
-        {
-            "text": "👑 Рианна стала первой женщиной-исполнительницей, открывшей модный дом Fenty под крылом LVMH.",
-            "image": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Rihanna_2018.png"
-        }
-    ]
+    facts = await fetch_celebrity_facts()
+    if not facts:
+        await message.answer("Фактов не найдено.")
+        return
     fact = random.choice(facts)
-    await message.answer_photo(photo=fact["image"], caption=fact["text"])
+    query = fact.split()[0] + " celebrity"
+    images = await fetch_pinterest_images(query)
+    if images:
+        await message.answer_photo(photo=images[0], caption=fact)
+    else:
+        await message.answer(fact)
 
 async def send_celebrity_story(message: Message):
-    stories = [
-        {
-            "text": "💋 Марлен Дитрих отказалась от голливудских стереотипов и ввела в моду мужские костюмы на женщинах.",
-            "image": "https://upload.wikimedia.org/wikipedia/commons/4/41/Marlene_Dietrich_%281930%29.jpg"
-        },
-        {
-            "text": "📸 Вивьен Вествуд — королева панк-эстетики, доказала, что стиль — это вызов, а не компромисс.",
-            "image": "https://upload.wikimedia.org/wikipedia/commons/9/93/Vivienne_Westwood_2008.jpg"
-        },
-        {
-            "text": "🔥 Бейонсе когда-то проиграла кастинг на роль в Disney, а теперь диктует стандарты моды и поп-культуры.",
-            "image": "https://upload.wikimedia.org/wikipedia/commons/1/10/Beyonce_2011.jpg"
-        }
-    ]
-    story = random.choice(stories)
-    await message.answer_photo(photo=story["image"], caption=story["text"])
+    quotes = await fetch_wiki_quote()
+    if not quotes:
+        await message.answer("Истории не найдены.")
+        return
+    story = random.choice(quotes)
+    query = story.split()[0] + " portrait"
+    images = await fetch_pinterest_images(query)
+    if images:
+        await message.answer_photo(photo=images[0], caption=story)
+    else:
+        await message.answer(story)
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -170,5 +182,3 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-if __name__ == "__main__":
-    asyncio.run(main())
