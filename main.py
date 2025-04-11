@@ -75,6 +75,19 @@ async def callback_handler(callback: CallbackQuery):
 def clean_html(text):
     return re.sub(r'<[^>]*>', '', text).strip()
 
+async def fetch_vk_group_posts(group_ids=None, count=5):
+    if group_ids is None:
+        group_ids = ["ray.blog", "instalove", "gorod_grexxxov", "urban.bliss", "cherrybombcult"]
+    posts = []
+    async with aiohttp.ClientSession() as session:
+        for group_id in group_ids:
+            url = f"https://api.vk.com/method/wall.get?domain={group_id}&count={count}&access_token={VK_TOKEN}&v=5.199"
+            async with session.get(url) as response:
+                result = await response.json()
+                if "response" in result:
+                    posts.extend(result["response"].get("items", []))
+    return posts
+
 async def fetch_pinterest_images(query, limit=3):
     search_url = f"https://www.pinterest.com/search/pins/?q={query}"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -107,14 +120,15 @@ async def fetch_wiki_quote():
             return [q.get_text() for q in quotes if len(q.get_text()) > 30][:5]
 
 async def rewrite_text_gpt(title: str, summary: str) -> str:
-    prompt = f"Сделай короткий, дерзкий и цепляющий пост по заголовку '{title}' и краткому содержанию '{summary}' в стиле модного паблика о знаменитостях. Добавь иронии и хештегов."
+    prompt = f"Сделай короткий, дерзкий и цепляющий пост по заголовку '{title}' и краткому содержанию '{summary}' в стиле модного паблика о знаменитостях. Добавь иронии и хештегов. Сделай так, чтобы пост читался как остроумный комментарий или подпись к фото."
     response = await openai.ChatCompletion.acreate(
-        model="gpt-3.5-turbo",
+        model="gpt-4",
         messages=[{"role": "user", "content": prompt}]
     )
     return response.choices[0].message.content
 
 async def send_news(message: Message):
+    rss_entries = []
     urls = [
         "https://www.gq.ru/rss/all",
         "https://www.elle.ru/rss/",
@@ -125,21 +139,26 @@ async def send_news(message: Message):
         "https://style.rbc.ru/rss/",
         "https://snob.ru/feed/"
     ]
-    entries = []
     for url in urls:
         feed = feedparser.parse(url)
         for entry in feed.entries:
             full_text = f"{entry.title.lower()} {entry.get('summary', '').lower()}"
             if any(kw in full_text for kw in ["звезда", "мода", "стиль", "лук", "образ", "красота", "fashion", "celebrity"]):
-                entries.append(entry)
-    if not entries:
+                rss_entries.append(entry)
+
+    vk_entries = await fetch_vk_group_posts()
+    for post in vk_entries:
+        if "text" in post and post["text"]:
+            rss_entries.append(type("VKEntry", (object,), {"title": post["text"][:100], "summary": post["text"]}))
+
+    if not rss_entries:
         await message.answer("Нет новых подходящих новостей.")
         return
-    random.shuffle(entries)
-    latest = entries[0]
+    random.shuffle(rss_entries)
+    latest = rss_entries[0]
 
-    title = clean_html(latest.get("title", ""))
-    summary = clean_html(latest.get("summary", ""))
+    title = clean_html(getattr(latest, "title", ""))
+    summary = clean_html(getattr(latest, "summary", ""))
     text = await rewrite_text_gpt(title, summary)
 
     query = title.split()[0] + " fashion"
@@ -210,4 +229,3 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-
