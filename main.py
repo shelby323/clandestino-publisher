@@ -7,8 +7,8 @@ import feedparser
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import Message, InputMediaPhoto, CallbackQuery
-from aiogram.filters import Command
+from aiogram.types import Message, InputMediaPhoto, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.filters import Command, Text
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import aiohttp
 from bs4 import BeautifulSoup
@@ -20,30 +20,53 @@ OWNER_IDS = {321069928, 5677874594}
 USED_ENTRIES = set()
 router = Router()
 
+menu_keyboard = InlineKeyboardBuilder()
+menu_keyboard.button(text="🎯 Эстетика", callback_data="type:aesthetic")
+menu_keyboard.button(text="📰 Новости", callback_data="type:news")
+menu_keyboard.button(text="✨ Факт о знаменитости", callback_data="type:celebrity_fact")
+menu_keyboard.button(text="📖 История о звезде", callback_data="type:celebrity_story")
+menu_keyboard.adjust(2)
+
+persistent_keyboard = ReplyKeyboardMarkup(
+    keyboard=[[KeyboardButton(text="📋 Меню")]],
+    resize_keyboard=True,
+    one_time_keyboard=False
+)
+
 @router.message(Command("start"))
 async def start_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
-    kb = InlineKeyboardBuilder()
-    kb.button(text="🎯 Эстетика", callback_data="type:aesthetic")
-    kb.button(text="📰 Новости", callback_data="type:news")
-    kb.button(text="✨ Факт о знаменитости", callback_data="type:celebrity_fact")
-    kb.button(text="📖 История о звезде", callback_data="type:celebrity_story")
-    kb.adjust(2)
-    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=kb.as_markup())
+    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
 
-@router.callback_query(lambda c: c.data and c.data.startswith("type:"))
-async def generate_posts(callback: CallbackQuery):
-    post_type = callback.data.split(":")[1]
-    if post_type == "news":
-        await send_news(callback.message)
-    elif post_type == "aesthetic":
-        await callback.message.answer("Посты с эстетикой будут реализованы позже.")
-    elif post_type == "celebrity_fact":
-        await send_celebrity_fact(callback.message)
-    elif post_type == "celebrity_story":
-        await send_celebrity_story(callback.message)
-    await callback.answer()
+@router.message(Text(text="меню"))
+@router.message(Text(text="📋 Меню"))
+async def menu_handler(message: Message):
+    if message.from_user.id not in OWNER_IDS:
+        return
+    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+
+@router.callback_query()
+async def callback_handler(callback: CallbackQuery):
+    data = callback.data
+    if data.startswith("type:"):
+        post_type = data.split(":")[1]
+        if post_type == "news":
+            await send_news(callback.message)
+        elif post_type == "aesthetic":
+            await callback.message.answer("Посты с эстетикой будут реализованы позже.")
+        elif post_type == "celebrity_fact":
+            await send_celebrity_fact(callback.message)
+        elif post_type == "celebrity_story":
+            await send_celebrity_story(callback.message)
+        await callback.answer()
+    elif data in ["post:confirm", "post:cancel"]:
+        if data == "post:confirm":
+            await post_to_vk(callback.message)
+            await callback.message.answer("✅ Пост опубликован в группу ВКонтакте")
+        else:
+            await callback.message.answer("❌ Публикация отменена")
+        await callback.answer()
 
 def clean_html(text):
     return re.sub(r'<[^>]*>', '', text).strip()
@@ -67,7 +90,7 @@ async def fetch_celebrity_facts():
             html = await response.text()
             soup = BeautifulSoup(html, 'html.parser')
             facts = soup.find_all('li')
-            return [clean_html(fact.get_text()) for fact in facts if len(fact.get_text()) > 50]
+            return [clean_html(fact.get_text()) for fact in facts if len(fact.get_text()) > 40]
 
 async def fetch_wiki_quote():
     url = "https://en.wikiquote.org/wiki/Special:Random"
@@ -124,15 +147,6 @@ async def send_news(message: Message):
     kb.button(text="❌ Отменить", callback_data="post:cancel")
     await message.answer("Опубликовать этот пост в группу?", reply_markup=kb.as_markup())
 
-@router.callback_query(lambda c: c.data in ["post:confirm", "post:cancel"])
-async def handle_post_confirmation(callback: CallbackQuery):
-    if callback.data == "post:confirm":
-        await post_to_vk(callback.message)
-        await callback.message.answer("✅ Пост опубликован в группу ВКонтакте")
-    else:
-        await callback.message.answer("❌ Публикация отменена")
-    await callback.answer()
-
 async def post_to_vk(message: Message):
     async with aiohttp.ClientSession() as session:
         async for msg in message.chat.history(limit=10):
@@ -177,8 +191,9 @@ async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
+    await bot.set_my_commands([types.BotCommand(command="start", description="Перезапустить бота")])
+    await bot.set_chat_menu_button(menu_button=types.MenuButtonCommands())
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
