@@ -113,7 +113,7 @@ async def rewrite_text_gpt(title: str, summary: str) -> str:
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}]
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content
 
 async def send_news(message: Message):
     urls = [
