@@ -52,25 +52,28 @@ async def menu_handler(message: Message):
 
 @router.callback_query()
 async def callback_handler(callback: CallbackQuery):
-    data = callback.data
-    if data.startswith("type:"):
-        post_type = data.split(":")[1]
-        if post_type == "news":
-            await send_news(callback.message)
-        elif post_type == "aesthetic":
-            await callback.message.answer("Посты с эстетикой будут реализованы позже.")
-        elif post_type == "celebrity_fact":
-            await send_celebrity_fact(callback.message)
-        elif post_type == "celebrity_story":
-            await send_celebrity_story(callback.message)
+    try:
+        data = callback.data
+        print(f"Callback received: {data}")
+        if data.startswith("type:"):
+            post_type = data.split(":")[1]
+            if post_type == "news":
+                await send_news(callback.message)
+            elif post_type == "aesthetic":
+                await callback.message.answer("Посты с эстетикой будут реализованы позже.")
+            elif post_type == "celebrity_fact":
+                await send_celebrity_fact(callback.message)
+            elif post_type == "celebrity_story":
+                await send_celebrity_story(callback.message)
+        elif data in ["post:confirm", "post:cancel"]:
+            if data == "post:confirm":
+                await post_to_vk(callback.message)
+                await callback.message.answer("✅ Пост опубликован в группу ВКонтакте")
+            else:
+                await callback.message.answer("❌ Публикация отменена")
         await callback.answer()
-    elif data in ["post:confirm", "post:cancel"]:
-        if data == "post:confirm":
-            await post_to_vk(callback.message)
-            await callback.message.answer("✅ Пост опубликован в группу ВКонтакте")
-        else:
-            await callback.message.answer("❌ Публикация отменена")
-        await callback.answer()
+    except Exception as e:
+        await callback.message.answer(f"❌ Ошибка в обработке: {str(e)}")
 
 def clean_html(text):
     return re.sub(r'<[^>]*>', '', text).strip()
@@ -92,19 +95,27 @@ async def fetch_vk_group_posts(group_ids=None, count=5):
     return posts
 
 async def send_news(message: Message):
-    news_items = await fetch_vk_group_posts()
-    top_post = next((p for p in news_items if 'attachments' in p and any(a['type'] == 'photo' for a in p['attachments'])), None)
-    if not top_post:
-        await message.answer("Новости не найдены.")
-        return
+    try:
+        news_items = await fetch_vk_group_posts()
+        print(f"Fetched {len(news_items)} posts from VK")
+        top_post = next(
+            (p for p in news_items if 'attachments' in p and any(a['type'] == 'photo' for a in p['attachments'])),
+            None
+        )
+        if not top_post:
+            await message.answer("Новости не найдены.")
+            return
 
-    text = top_post.get("text", "")
-    photos = [a['photo']['sizes'][-1]['url'] for a in top_post['attachments'] if a['type'] == 'photo']
+        text = top_post.get("text", "")
+        photos = [a['photo']['sizes'][-1]['url'] for a in top_post['attachments'] if a['type'] == 'photo']
 
-    if not text:
-        text = "Пост из VK без текста."
+        if not text:
+            text = "Пост из VK без текста."
 
-    await message.answer_photo(photo=photos[0], caption=text)
+        await message.answer_photo(photo=photos[0], caption=text)
+
+    except Exception as e:
+        await message.answer(f"⚠️ Ошибка при получении новостей: {str(e)}")
 
 async def send_celebrity_fact(message: Message):
     await message.answer("Факты о знаменитостях будут добавлены позже.")
@@ -114,3 +125,4 @@ async def send_celebrity_story(message: Message):
 
 async def post_to_vk(message: Message):
     await message.answer("Функция публикации в VK будет реализована позже.")
+
