@@ -37,20 +37,27 @@ persistent_keyboard = ReplyKeyboardMarkup(
     one_time_keyboard=False
 )
 
+def clean_html(text):
+    return re.sub(r'<[^>]*>', '', text).strip()
+
+async def send_menu(message: Message):
+    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+
 @router.message(Command("start"))
 async def start_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
-    await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+    await send_menu(message)
     await message.answer("Меню доступно ниже", reply_markup=persistent_keyboard)
 
 @router.message()
 async def menu_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
-    text = message.text.lower().strip()
-    if text in ["меню", "/menu", "📋 меню"]:
-        await message.answer("Выбери, какой пост хочешь опубликовать:", reply_markup=menu_keyboard.as_markup())
+    user_input = message.text.strip().lower()
+    print(f"\U0001F4E5 Получено сообщение: {user_input}")
+    if "меню" in user_input:
+        await send_menu(message)
 
 @router.callback_query()
 async def callback_handler(callback: CallbackQuery):
@@ -76,9 +83,6 @@ async def callback_handler(callback: CallbackQuery):
         await callback.answer()
     except Exception as e:
         await callback.message.answer(f"❌ Ошибка в обработке: {str(e)}")
-
-def clean_html(text):
-    return re.sub(r'<[^>]*>', '', text).strip()
 
 async def fetch_vk_group_posts(group_ids=None, count=5):
     if group_ids is None:
