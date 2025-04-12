@@ -159,11 +159,12 @@ async def send_rss_news(message: Message):
     link = latest.get("link", "")
     print(f"🧠 GPT рерайт: {title}")
     try:
+        prompt = f"Заголовок: {title}\n\nОписание: {summary}\n\nСделай стильный и цепляющий пост в духе модного глянца, без источника."
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Ты кратко и дерзко переписываешь новостные тексты в стиле глянца. Не упоминай источник."},
-                {"role": "user", "content": f"{title}\n\n{summary}"}
+                {"role": "system", "content": "Ты переписываешь текст новостей в дерзком и глянцевом стиле."},
+                {"role": "user", "content": prompt}
             ]
         )
         rewritten = response.choices[0].message.content.strip()
@@ -172,7 +173,7 @@ async def send_rss_news(message: Message):
         print(f"✅ GPT вернул: {rewritten[:60]}...")
     except Exception as e:
         print(f"⚠️ Ошибка OpenAI: {e}")
-        rewritten = f"<b>{title}</b>\n\n{summary}"
+        rewritten = f"<b>{title}</b>\n\n{summary}"  # fallback на оригинальный текст
     text = f"{rewritten}\n\n#новости"
     await message.answer(text, parse_mode=ParseMode.HTML)
 
@@ -184,3 +185,4 @@ async def send_celebrity_story(message: Message):
 
 async def post_to_vk(message: Message):
     await message.answer("Функция публикации в VK будет реализована позже.")
+
