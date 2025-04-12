@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 import openai
 
 BOT_TOKEN = os.getenv("API_TOKEN")
-VK_TOKEN = os.getenv("VK_TOKEN")  # теперь используется пользовательский токен
+VK_TOKEN = os.getenv("VK_TOKEN")
 VK_GROUP_ID = os.getenv("VK_GROUP_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -148,16 +148,29 @@ async def send_rss_news(message: Message):
         feed = feedparser.parse(url)
         entries.extend(feed.entries)
     entries.sort(key=lambda e: e.get("published_parsed", None), reverse=True)
-    latest = next((e for e in entries if e.get("title") and e.get("link")), None)
+    latest = next((e for e in entries if e.get("title") and e.get("link") and e.get("link") not in USED_ENTRIES), None)
     if not latest:
         print("❌ Нет новостей в RSS")
         await message.answer("Новости не найдены в RSS.")
         return
+    USED_ENTRIES.add(latest.get("link"))
     title = clean_html(latest.get("title", ""))
     summary = clean_html(latest.get("summary", ""))
     link = latest.get("link", "")
-    print(f"✅ RSS новость: {title}")
-    text = f"<b>{title}</b>\n\n{summary}\n\n#новости\n"
+    print(f"🧠 GPT рерайт: {title}")
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Ты кратко и дерзко переписываешь новостные тексты в стиле глянца. Не упоминай источник."},
+                {"role": "user", "content": f"{title}\n\n{summary}"}
+            ]
+        )
+        rewritten = response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"⚠️ Ошибка OpenAI: {e}")
+        rewritten = f"<b>{title}</b>\n\n{summary}"
+    text = f"{rewritten}\n\n#новости"
     await message.answer(text, parse_mode=ParseMode.HTML)
 
 async def send_celebrity_fact(message: Message):
