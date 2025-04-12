@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 import openai
 
 BOT_TOKEN = os.getenv("API_TOKEN")
-VK_TOKEN = os.getenv("VK_TOKEN")
+VK_TOKEN = os.getenv("VK_TOKEN")  # теперь используется пользовательский токен
 VK_GROUP_ID = os.getenv("VK_GROUP_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -30,6 +30,11 @@ menu_keyboard.button(text="📰 Новости", callback_data="type:news")
 menu_keyboard.button(text="✨ Факт о знаменитости", callback_data="type:celebrity_fact")
 menu_keyboard.button(text="📖 История о звезде", callback_data="type:celebrity_story")
 menu_keyboard.adjust(2)
+
+news_source_keyboard = InlineKeyboardBuilder()
+news_source_keyboard.button(text="🛰 Новости из соцсетей", callback_data="news_vk")
+news_source_keyboard.button(text="🗞 Новости с RSS", callback_data="news_rss")
+news_source_keyboard.adjust(1)
 
 persistent_keyboard = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="📜 Меню")]],
@@ -55,7 +60,6 @@ async def menu_handler(message: Message):
     if message.from_user.id not in OWNER_IDS:
         return
     user_input = message.text.strip().lower()
-    print(f"📥 Получено сообщение: {user_input}")
     if "меню" in user_input:
         await send_menu(message)
 
@@ -63,17 +67,20 @@ async def menu_handler(message: Message):
 async def callback_handler(callback: CallbackQuery):
     try:
         data = callback.data
-        print(f"Callback received: {data}")
         if data.startswith("type:"):
             post_type = data.split(":")[1]
             if post_type == "news":
-                await send_news(callback.message)
+                await callback.message.answer("Выбери источник новостей:", reply_markup=news_source_keyboard.as_markup())
             elif post_type == "aesthetic":
                 await callback.message.answer("Посты с эстетикой будут реализованы позже.")
             elif post_type == "celebrity_fact":
                 await send_celebrity_fact(callback.message)
             elif post_type == "celebrity_story":
                 await send_celebrity_story(callback.message)
+        elif data == "news_vk":
+            await send_vk_news(callback.message)
+        elif data == "news_rss":
+            await send_rss_news(callback.message)
         elif data in ["post:confirm", "post:cancel"]:
             if data == "post:confirm":
                 await post_to_vk(callback.message)
@@ -93,35 +100,65 @@ async def fetch_vk_group_posts(group_ids=None, count=5):
     posts = []
     async with aiohttp.ClientSession() as session:
         for group_id in group_ids:
+            print(f"📡 Обрабатываем группу: {group_id}")
             url = f"https://api.vk.com/method/wall.get?domain={group_id}&count={count}&access_token={VK_TOKEN}&v=5.199"
             async with session.get(url) as response:
                 result = await response.json()
+                print(f"📥 Получен ответ от VK для {group_id}: {result.get('response') and len(result['response'].get('items', []))} постов")
                 if "response" in result:
                     posts.extend(result["response"].get("items", []))
     return posts
 
-async def send_news(message: Message):
+async def send_vk_news(message: Message):
     try:
         news_items = await fetch_vk_group_posts()
-        print(f"Fetched {len(news_items)} posts from VK")
+        print(f"🔍 Ищем пост с фото среди {len(news_items)} постов")
         top_post = next(
             (p for p in news_items if 'attachments' in p and any(a['type'] == 'photo' for a in p['attachments'])),
             None
         )
         if not top_post:
+            print("❌ Не найдено постов с фото")
             await message.answer("Новости не найдены.")
             return
-
         text = top_post.get("text", "")
         photos = [a['photo']['sizes'][-1]['url'] for a in top_post['attachments'] if a['type'] == 'photo']
-
         if not text:
             text = "Пост из VK без текста."
-
+        print(f"✅ Отправляем пост: {text[:60]}...")
         await message.answer_photo(photo=photos[0], caption=text)
-
     except Exception as e:
+        print(f"🛑 Ошибка в send_vk_news: {e}")
         await message.answer(f"⚠️ Ошибка при получении новостей: {str(e)}")
+
+async def send_rss_news(message: Message):
+    rss_feeds = [
+        "https://www.gq.ru/rss/all",
+        "https://www.elle.ru/rss/",
+        "https://www.interviewrussia.ru/rss",
+        "https://vogue.ru/feed",
+        "https://www.the-village.ru/rss",
+        "https://daily.afisha.ru/rss/",
+        "https://style.rbc.ru/rss/",
+        "https://snob.ru/feed/"
+    ]
+    entries = []
+    for url in rss_feeds:
+        print(f"🌐 Парсим RSS: {url}")
+        feed = feedparser.parse(url)
+        entries.extend(feed.entries)
+    entries.sort(key=lambda e: e.get("published_parsed", None), reverse=True)
+    latest = next((e for e in entries if e.get("title") and e.get("link")), None)
+    if not latest:
+        print("❌ Нет новостей в RSS")
+        await message.answer("Новости не найдены в RSS.")
+        return
+    title = clean_html(latest.get("title", ""))
+    summary = clean_html(latest.get("summary", ""))
+    link = latest.get("link", "")
+    print(f"✅ RSS новость: {title}")
+    text = f"<b>{title}</b>\n\n{summary}\n\n#новости\n"
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 async def send_celebrity_fact(message: Message):
     await message.answer("Факты о знаменитостях будут добавлены позже.")
