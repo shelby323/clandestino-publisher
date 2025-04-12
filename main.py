@@ -167,6 +167,9 @@ async def send_rss_news(message: Message):
             ]
         )
         rewritten = response.choices[0].message.content.strip()
+        if not rewritten:
+            raise ValueError("GPT ответ пустой")
+        print(f"✅ GPT вернул: {rewritten[:60]}...")
     except Exception as e:
         print(f"⚠️ Ошибка OpenAI: {e}")
         rewritten = f"<b>{title}</b>\n\n{summary}"
