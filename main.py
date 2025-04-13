@@ -159,6 +159,8 @@ async def send_rss_news(message: Message):
     link = latest.get("link", "")
     print(f"🧠 GPT рерайт: {title}")
     try:
+        if not openai.api_key:
+            raise ValueError("❗️ OpenAI API ключ не задан или пустой.")
         prompt = f"Заголовок: {title}\n\nОписание: {summary}\n\nСделай стильный и цепляющий пост в духе модного глянца, без источника."
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -173,7 +175,7 @@ async def send_rss_news(message: Message):
         print(f"✅ GPT вернул: {rewritten[:60]}...")
     except Exception as e:
         print(f"⚠️ Ошибка OpenAI: {e}")
-        rewritten = f"<b>{title}</b>\n\n{summary}"  # fallback на оригинальный текст
+        rewritten = f"<b>{title}</b>\n\n{summary}\n\n❗️ GPT не ответил. Проверь баланс в OpenAI Platform."
     text = f"{rewritten}\n\n#новости"
     await message.answer(text, parse_mode=ParseMode.HTML)
 
@@ -182,6 +184,9 @@ async def send_celebrity_fact(message: Message):
 
 async def send_celebrity_story(message: Message):
     await message.answer("Истории о звездах будут добавлены позже.")
+
+async def post_to_vk(message: Message):
+    await message.answer("Функция публикации в VK будет реализована позже.")
 
 async def post_to_vk(message: Message):
     await message.answer("Функция публикации в VK будет реализована позже.")
