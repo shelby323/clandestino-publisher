@@ -171,9 +171,10 @@ async def send_rss_news(message: Message):
                 {"role": "user", "content": prompt}
             ]
         )
+        print("📩 Полный ответ от GPT:", response)
         rewritten = response.choices[0].message.content.strip()
         if not rewritten:
-            raise ValueError("GPT ответ пустой")
+            raise ValueError("GPT вернул пустой ответ")
         print(f"✅ GPT вернул: {rewritten[:60]}...")
     except Exception as e:
         print(f"⚠️ Ошибка OpenAI: {e}")
@@ -189,4 +190,3 @@ async def send_celebrity_story(message: Message):
 
 async def post_to_vk(message: Message):
     await message.answer("Функция публикации в VK будет реализована позже.")
-
