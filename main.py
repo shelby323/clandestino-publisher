@@ -162,6 +162,12 @@ async def send_rss_news(message: Message):
     try:
         if not openai.api_key:
             raise ValueError("❗️ OpenAI API ключ не задан или пустой.")
+
+        # Проверка доступа к модели перед отправкой
+        models = openai.Model.list()
+        if not any(m.id == "gpt-3.5-turbo" for m in models.data):
+            raise ValueError("❗️ Модель gpt-3.5-turbo недоступна для API ключа.")
+
         prompt = f"Заголовок: {title}\n\nОписание: {summary}\n\nСделай стильный и цепляющий пост в духе модного глянца, без источника."
         print(f"📤 Отправка в GPT prompt: {prompt}")
         response = openai.ChatCompletion.create(
@@ -178,7 +184,7 @@ async def send_rss_news(message: Message):
         print(f"✅ GPT вернул: {rewritten[:60]}...")
     except Exception as e:
         print(f"⚠️ Ошибка OpenAI: {e}")
-        rewritten = f"<b>{title}</b>\n\n{summary}\n\n❗️ GPT не ответил. Проверь баланс в OpenAI Platform."
+        rewritten = f"<b>{title}</b>\n\n{summary}\n\n❗️ GPT не ответил. Проверь ключ и баланс в OpenAI Platform."
     text = f"{rewritten}\n\n#новости"
     await message.answer(text, parse_mode=ParseMode.HTML)
 
