@@ -1,9 +1,12 @@
 meta:
-  version: 3.11
+  language: python
+  tool: pip
+  version: "3.11"
 
 build:
   requirementsPath: requirements.txt
 
 run:
+  scriptName: start.py
   command: python start.py
-  containerPort: 80
+
