@@ -6,6 +6,7 @@ import json
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
+from langdetect import detect
 
 load_dotenv()
 
@@ -22,7 +23,8 @@ menu_keyboard.add(
     InlineKeyboardButton("📰 Новости", callback_data="news"),
     InlineKeyboardButton("🎨 Эстетика", callback_data="aesthetics"),
     InlineKeyboardButton("✨ Цитата", callback_data="quote"),
-    InlineKeyboardButton("💬 История", callback_data="story")
+    InlineKeyboardButton("💬 История", callback_data="story"),
+    InlineKeyboardButton("📡 Собрать свежие материалы", callback_data="collect")
 )
 
 def log_interaction(data):
@@ -31,6 +33,32 @@ def log_interaction(data):
             f.write(json.dumps(data, ensure_ascii=False) + "\n")
     except Exception as e:
         logging.error(f"Ошибка при логировании статистики: {e}")
+
+def is_foreign(text):
+    try:
+        return detect(text) != "ru"
+    except:
+        return False
+
+def translate_and_adapt(text):
+    prompt = (
+        "Переведи этот текст на русский язык и адаптируй его под стиль модного Telegram-канала: "
+        "лаконично, дерзко, эстетично, с фокусом на стиль, моду, визуальность. "
+        "Оставь только самое главное, сделай из него короткий пост.\n\n"
+        f"{text}"
+    )
+
+    response = requests.post(
+        PROXY_URL,
+        headers={"Content-Type": "application/json"},
+        json={"messages": [{"role": "user", "content": prompt}]}
+    )
+
+    if response.ok:
+        data = response.json()
+        return data["choices"][0]["message"]["content"].strip()
+    else:
+        return "Ошибка при переводе/адаптации текста."
 
 @dp.message_handler(commands=["start", "menu"])
 async def cmd_start(message: types.Message):
@@ -52,37 +80,43 @@ async def process_callback(callback_query: types.CallbackQuery):
 
     prompt = prompt_map[callback_query.data]
 
-    try:
-        response = requests.post(
-            PROXY_URL,
-            headers={"Content-Type": "application/json"},
-            json={
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ]
-            },
-            timeout=30
-        )
+    response = requests.post(
+        PROXY_URL,
+        headers={"Content-Type": "application/json"},
+        json={
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+    )
 
-        if response.ok:
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-            await bot.send_message(callback_query.from_user.id, text.strip())
+    if response.ok:
+        data = response.json()
+        text = data["choices"][0]["message"]["content"]
+        await bot.send_message(callback_query.from_user.id, text.strip())
 
-            log_interaction({
-                "user_id": callback_query.from_user.id,
-                "username": callback_query.from_user.username,
-                "action": callback_query.data,
-                "timestamp": datetime.datetime.now().isoformat(),
-                "response": text.strip()
-            })
-        else:
-            logging.error(f"Ошибка GPT API: {response.status_code} — {response.text}")
-            await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
-    except Exception as e:
-        logging.exception("Сбой при запросе к GPT через прокси")
-        await bot.send_message(callback_query.from_user.id, "Произошла ошибка при обращении к GPT.")
+        log_interaction({
+            "user_id": callback_query.from_user.id,
+            "username": callback_query.from_user.username,
+            "action": callback_query.data,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "response": text.strip()
+        })
+    else:
+        await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
+
+@dp.callback_query_handler(lambda c: c.data == "collect")
+async def handle_collect(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+
+    sample_text = "Paris Fashion Week kicks off with bold designs and celebrity appearances."
+
+    if is_foreign(sample_text):
+        adapted_text = translate_and_adapt(sample_text)
+    else:
+        adapted_text = sample_text
+
+    await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}")
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
