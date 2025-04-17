@@ -3,6 +3,7 @@ import logging
 import requests
 import datetime
 import json
+import random
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
@@ -115,29 +116,38 @@ async def process_callback(callback_query: types.CallbackQuery):
     else:
         await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
 
-last_collected_text = None
+last_collected_texts = []
+collected_index = 0
+sample_pool = [
+    "Paris Fashion Week kicks off with bold designs and celebrity appearances.",
+    "Stars bring sparkle to the Paris runway as Fashion Week begins.",
+    "The runway in Paris lights up with creativity and glamour for Fashion Week."
+]
 
 @dp.callback_query_handler(lambda c: c.data == "collect")
 async def handle_collect(callback_query: types.CallbackQuery):
-    global last_collected_text
+    global last_collected_texts, collected_index
     await bot.answer_callback_query(callback_query.id)
 
-    sample_text = "Paris Fashion Week kicks off with bold designs and celebrity appearances."
+    # Выбор случайной новости, исключая повтор последней
+    available_texts = [txt for txt in sample_pool if txt not in last_collected_texts[-3:]]
+    sample_text = random.choice(available_texts) if available_texts else random.choice(sample_pool)
 
     if is_foreign(sample_text):
         adapted_text = translate_and_adapt(sample_text)
     else:
         adapted_text = sample_text
 
-    last_collected_text = adapted_text
+    last_collected_texts.append(sample_text)
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}", reply_markup=post_actions_keyboard)
 
 @dp.callback_query_handler(lambda c: c.data == "rewrite")
 async def handle_rewrite(callback_query: types.CallbackQuery):
-    global last_collected_text
+    global last_collected_texts
     await bot.answer_callback_query(callback_query.id)
-    if last_collected_text:
-        alt_version = translate_and_adapt(last_collected_text)
+    if last_collected_texts:
+        latest = last_collected_texts[-1]
+        alt_version = translate_and_adapt(latest)
         await bot.send_message(callback_query.from_user.id, f"Вариант переформулировки:\n\n{alt_version}", reply_markup=post_actions_keyboard)
     else:
         await bot.send_message(callback_query.from_user.id, "Нет текста для редактирования.")
