@@ -51,7 +51,10 @@ def translate_and_adapt(text):
     response = requests.post(
         PROXY_URL,
         headers={"Content-Type": "application/json"},
-        json={"messages": [{"role": "user", "content": prompt}]}
+        json={
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": prompt}]
+        }
     )
 
     if response.ok:
@@ -84,6 +87,7 @@ async def process_callback(callback_query: types.CallbackQuery):
         PROXY_URL,
         headers={"Content-Type": "application/json"},
         json={
+            "model": "gpt-3.5-turbo",
             "messages": [
                 {"role": "user", "content": prompt}
             ]
@@ -120,3 +124,4 @@ async def handle_collect(callback_query: types.CallbackQuery):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
