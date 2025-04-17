@@ -27,6 +27,12 @@ menu_keyboard.add(
     InlineKeyboardButton("📡 Собрать свежие материалы", callback_data="collect")
 )
 
+post_actions_keyboard = InlineKeyboardMarkup(row_width=2)
+post_actions_keyboard.add(
+    InlineKeyboardButton("🔁 Редактировать", callback_data="rewrite"),
+    InlineKeyboardButton("📤 Опубликовать в ВК", callback_data="post_vk")
+)
+
 def log_interaction(data):
     try:
         with open("stats.jsonl", "a", encoding="utf-8") as f:
@@ -109,8 +115,11 @@ async def process_callback(callback_query: types.CallbackQuery):
     else:
         await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
 
+last_collected_text = None
+
 @dp.callback_query_handler(lambda c: c.data == "collect")
 async def handle_collect(callback_query: types.CallbackQuery):
+    global last_collected_text
     await bot.answer_callback_query(callback_query.id)
 
     sample_text = "Paris Fashion Week kicks off with bold designs and celebrity appearances."
@@ -120,8 +129,23 @@ async def handle_collect(callback_query: types.CallbackQuery):
     else:
         adapted_text = sample_text
 
-    await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}")
+    last_collected_text = adapted_text
+    await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}", reply_markup=post_actions_keyboard)
+
+@dp.callback_query_handler(lambda c: c.data == "rewrite")
+async def handle_rewrite(callback_query: types.CallbackQuery):
+    global last_collected_text
+    await bot.answer_callback_query(callback_query.id)
+    if last_collected_text:
+        alt_version = translate_and_adapt(last_collected_text)
+        await bot.send_message(callback_query.from_user.id, f"Вариант переформулировки:\n\n{alt_version}", reply_markup=post_actions_keyboard)
+    else:
+        await bot.send_message(callback_query.from_user.id, "Нет текста для редактирования.")
+
+@dp.callback_query_handler(lambda c: c.data == "post_vk")
+async def handle_post_vk(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, "🛠 Функция публикации в ВК находится в разработке.")
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
-
