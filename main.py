@@ -52,30 +52,37 @@ async def process_callback(callback_query: types.CallbackQuery):
 
     prompt = prompt_map[callback_query.data]
 
-    response = requests.post(
-        PROXY_URL,
-        headers={"Content-Type": "application/json"},
-        json={
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-    )
+    try:
+        response = requests.post(
+            PROXY_URL,
+            headers={"Content-Type": "application/json"},
+            json={
+                "model": "gpt-3.5-turbo",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ]
+            },
+            timeout=30
+        )
 
-    if response.ok:
-        data = response.json()
-        text = data["choices"][0]["message"]["content"]
-        await bot.send_message(callback_query.from_user.id, text.strip())
+        if response.ok:
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+            await bot.send_message(callback_query.from_user.id, text.strip())
 
-        log_interaction({
-            "user_id": callback_query.from_user.id,
-            "username": callback_query.from_user.username,
-            "action": callback_query.data,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "response": text.strip()
-        })
-    else:
-        await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
+            log_interaction({
+                "user_id": callback_query.from_user.id,
+                "username": callback_query.from_user.username,
+                "action": callback_query.data,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "response": text.strip()
+            })
+        else:
+            logging.error(f"Ошибка GPT API: {response.status_code} — {response.text}")
+            await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
+    except Exception as e:
+        logging.exception("Сбой при запросе к GPT через прокси")
+        await bot.send_message(callback_query.from_user.id, "Произошла ошибка при обращении к GPT.")
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
