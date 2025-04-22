@@ -165,4 +165,3 @@ async def handle_post_vk(callback_query: types.CallbackQuery):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=False)
-
