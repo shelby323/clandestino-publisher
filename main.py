@@ -5,6 +5,8 @@ import datetime
 import json
 import feedparser
 import random
+import re
+from bs4 import BeautifulSoup
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
@@ -48,11 +50,27 @@ def is_foreign(text):
     except:
         return False
 
+def clean_html(raw_html):
+    return BeautifulSoup(raw_html, "html.parser").get_text()
+
+def sanitize_text(text):
+    text = clean_html(text)
+    text = re.sub(r"http\S+", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+BLOCKED_KEYWORDS = ["subscribe", "buy now", "lookbook", "collection", "sale", "shopping"]
+
+def is_advertisement(text):
+    text = text.lower()
+    return any(keyword in text for keyword in BLOCKED_KEYWORDS)
+
 def translate_and_adapt(text):
     if is_foreign(text):
         prompt = (
-            "Переведи этот текст на русский язык и адаптируй его под стиль модного Telegram-канала: "
-            "лаконично, дерзко, эстетично, от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность, известных людей, знаменитостей и их образы.\n\n"
+            "Переведи текст на русский язык и адаптируй его под стиль модного Telegram-канала. "
+            "Только русский язык. Без HTML. Без английских слов. Напиши лаконично, стильно, 1–4 абзаца. "
+            "Фокус на визуальность, известных людей, образы, звёзд шоу-бизнеса.\n\n"
             f"{text}"
         )
     else:
@@ -122,6 +140,11 @@ RSS_FEEDS = [
     "https://www.vogue.ru/rss.xml",
     "https://www.elle.ru/rss.xml",
     "https://www.kinopoisk.ru/media/news/rss.xml",
+    "https://www.woman.ru/rss/",
+    "https://7days.ru/rss/",
+    "https://www.starhit.ru/rss/",
+    "https://www.cosmo.ru/rss.xml",
+    "https://life.ru/rss.xml",
 
     # Англоязычные
     "https://www.vogue.com/feed",
@@ -146,6 +169,7 @@ async def handle_collect(callback_query: types.CallbackQuery):
         all_entries.extend(feed.entries)
 
     all_entries = [e for e in all_entries if getattr(e, "title", "").strip() or getattr(e, "summary", "").strip()]
+    all_entries = [e for e in all_entries if not is_advertisement(e.title + " " + getattr(e, "summary", ""))]
     all_entries = sorted(all_entries, key=lambda e: getattr(e, "published_parsed", datetime.datetime.min), reverse=True)
     logging.info(f"Собрано {len(all_entries)} записей из RSS-источников.")
 
@@ -161,8 +185,8 @@ async def handle_collect(callback_query: types.CallbackQuery):
         return
 
     entry = random.choice(fresh_news)
-    title = entry.title
-    summary = getattr(entry, "summary", "")
+    title = sanitize_text(entry.title)
+    summary = sanitize_text(getattr(entry, "summary", ""))
     combined = f"{title}\n{summary}".strip()
 
     adapted_text = translate_and_adapt(combined)
@@ -191,4 +215,5 @@ async def handle_post_vk(callback_query: types.CallbackQuery):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=False)
+
 
