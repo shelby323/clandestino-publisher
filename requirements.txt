@@ -3,3 +3,4 @@ python-dotenv
 requests
 langdetect
 feedparser
+beautifulsoup4
