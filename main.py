@@ -49,11 +49,19 @@ def is_foreign(text):
         return False
 
 def translate_and_adapt(text):
-    prompt = (
-        "Переведи этот текст на русский язык и адаптируй его под стиль модного Telegram-канала: "
-        "лаконично, дерзко, эстетично, от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность.\n\n"
-        f"{text}"
-    )
+    if is_foreign(text):
+        prompt = (
+            "Переведи этот текст на русский язык и адаптируй его под стиль модного Telegram-канала: "
+            "лаконично, дерзко, эстетично, от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность.\n\n"
+            f"{text}"
+        )
+    else:
+        prompt = (
+            "Сделай рерайт текста в стиле модного Telegram-канала: лаконично, дерзко, эстетично, "
+            "от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность.\n\n"
+            f"{text}"
+        )
+
     response = requests.post(
         PROXY_URL,
         headers={"Content-Type": "application/json"},
@@ -110,7 +118,11 @@ recent_titles = set()
 used_entries = set()
 RSS_FEEDS = [
     "https://www.glamour.ru/rss/news",
-    "https://www.vogue.ru/rss.xml"
+    "https://www.vogue.ru/rss.xml",
+    "https://www.vogue.com/feed",
+    "https://www.harpersbazaar.com/rss/all.xml",
+    "https://www.lofficielusa.com/rss",
+    "https://www.wmagazine.com/rss"
 ]
 
 @dp.callback_query_handler(lambda c: c.data == "collect")
@@ -169,3 +181,4 @@ async def handle_post_vk(callback_query: types.CallbackQuery):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=False)
+
