@@ -61,6 +61,7 @@ def sanitize_text(text):
 
 BLOCKED_KEYWORDS = ["subscribe", "buy now", "lookbook", "collection", "sale", "shopping"]
 
+
 def is_advertisement(text):
     text = text.lower()
     return any(keyword in text for keyword in BLOCKED_KEYWORDS)
@@ -69,15 +70,16 @@ def translate_and_adapt(text):
     if is_foreign(text):
         prompt = (
             "Переведи текст на русский язык и адаптируй его под стиль модного Telegram-канала. "
-            "Только русский язык. Без HTML. Без английских слов. Напиши лаконично, стильно, 1–4 абзаца. "
-            "Фокус на визуальность, известных людей, образы, звёзд шоу-бизнеса.\n\n"
-            f"{text}"
+            "Только русский язык. Без HTML. Без английских слов. Без рекламных фраз. Напиши лаконично, стильно, 1–4 абзаца. "
+            "Фокус на визуальность, известных людей, образы, звёзд шоу-бизнеса. Удали мусор."
+            f"\n\n{text}"
         )
     else:
         prompt = (
             "Сделай рерайт текста в стиле модного Telegram-канала: лаконично, дерзко, эстетично, "
-            "от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность, известных людей, знаменитостей и их образы.\n\n"
-            f"{text}"
+            "от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность, известных людей, знаменитостей и их образы. "
+            "Удали англоязычные фразы и элементы кода, оставь чистый русский текст."
+            f"\n\n{text}"
         )
 
     response = requests.post(
@@ -135,7 +137,6 @@ last_collected_text = None
 recent_titles = set()
 used_entries = set()
 RSS_FEEDS = [
-    # Русскоязычные
     "https://www.glamour.ru/rss/news",
     "https://www.vogue.ru/rss.xml",
     "https://www.elle.ru/rss.xml",
@@ -145,8 +146,6 @@ RSS_FEEDS = [
     "https://www.starhit.ru/rss/",
     "https://www.cosmo.ru/rss.xml",
     "https://life.ru/rss.xml",
-
-    # Англоязычные
     "https://www.vogue.com/feed",
     "https://www.harpersbazaar.com/rss/all.xml",
     "https://www.lofficielusa.com/rss",
