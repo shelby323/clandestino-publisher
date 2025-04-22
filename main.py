@@ -3,6 +3,7 @@ import logging
 import requests
 import datetime
 import json
+import feedparser
 import random
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -50,11 +51,9 @@ def is_foreign(text):
 def translate_and_adapt(text):
     prompt = (
         "Переведи этот текст на русский язык и адаптируй его под стиль модного Telegram-канала: "
-        "лаконично, дерзко, эстетично, с фокусом на стиль, моду, визуальность. "
-        "Оставь только самое главное, сделай из него короткий пост.\n\n"
+        "лаконично, дерзко, эстетично, от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность.\n\n"
         f"{text}"
     )
-
     response = requests.post(
         PROXY_URL,
         headers={"Content-Type": "application/json"},
@@ -63,7 +62,6 @@ def translate_and_adapt(text):
             "messages": [{"role": "user", "content": prompt}]
         }
     )
-
     if response.ok:
         data = response.json()
         return data["choices"][0]["message"]["content"].strip()
@@ -80,32 +78,22 @@ async def cmd_start(message: types.Message):
 @dp.callback_query_handler(lambda c: c.data in ["news", "aesthetics", "quote", "story"])
 async def process_callback(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
-
     prompt_map = {
         "news": "Сделай короткий пост в стиле модного Telegram-канала: лаконично, дерзко, цепляюще. Тема — мода, знаменитости, весна 2025.",
         "aesthetics": "Создай визуально вдохновляющий текст, как пост в эстетичном Instagram-аккаунте. Тема — стиль и атмосфера весны 2025.",
         "quote": "Придумай короткую цитату от имени вымышленной знаменитости о стиле, весне и самоощущении. Без лишнего пафоса.",
         "story": "Напиши короткую художественную историю на 3-5 предложений о девушке, которая влюбилась этой весной, в стиле дневника."
     }
-
     prompt = prompt_map[callback_query.data]
-
     response = requests.post(
         PROXY_URL,
         headers={"Content-Type": "application/json"},
-        json={
-            "model": "gpt-3.5-turbo",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
+        json={"model": "gpt-3.5-turbo", "messages": [{"role": "user", "content": prompt}]}
     )
-
     if response.ok:
         data = response.json()
         text = data["choices"][0]["message"]["content"]
         await bot.send_message(callback_query.from_user.id, text.strip())
-
         log_interaction({
             "user_id": callback_query.from_user.id,
             "username": callback_query.from_user.username,
@@ -116,38 +104,53 @@ async def process_callback(callback_query: types.CallbackQuery):
     else:
         await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
 
-last_collected_texts = []
-collected_index = 0
-sample_pool = [
-    "Paris Fashion Week kicks off with bold designs and celebrity appearances.",
-    "Stars bring sparkle to the Paris runway as Fashion Week begins.",
-    "The runway in Paris lights up with creativity and glamour for Fashion Week."
+last_collected_text = None
+recent_titles = []
+RSS_FEEDS = [
+    "https://www.glamour.ru/rss/news",
+    "https://www.vogue.ru/rss.xml"
 ]
 
 @dp.callback_query_handler(lambda c: c.data == "collect")
 async def handle_collect(callback_query: types.CallbackQuery):
-    global last_collected_texts, collected_index
+    global last_collected_text, recent_titles
     await bot.answer_callback_query(callback_query.id)
 
-    # Выбор случайной новости, исключая повтор последней
-    available_texts = [txt for txt in sample_pool if txt not in last_collected_texts[-3:]]
-    sample_text = random.choice(available_texts) if available_texts else random.choice(sample_pool)
+    fresh_news = []
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
+        for entry in feed.entries:
+            if entry.title not in recent_titles:
+                fresh_news.append(entry)
 
-    if is_foreign(sample_text):
-        adapted_text = translate_and_adapt(sample_text)
-    else:
-        adapted_text = sample_text
+    if not fresh_news:
+        for url in RSS_FEEDS:
+            feed = feedparser.parse(url)
+            fresh_news.extend(feed.entries)
 
-    last_collected_texts.append(sample_text)
+    if not fresh_news:
+        await bot.send_message(callback_query.from_user.id, "Нет новостей для отображения.")
+        return
+
+    entry = random.choice(fresh_news)
+    title = entry.title
+    summary = getattr(entry, "summary", "")
+    combined = f"{title}\n{summary}"
+
+    adapted_text = translate_and_adapt(combined)
+    last_collected_text = adapted_text
+    recent_titles.append(title)
+    if len(recent_titles) > 10:
+        recent_titles = recent_titles[-10:]
+
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}", reply_markup=post_actions_keyboard)
 
 @dp.callback_query_handler(lambda c: c.data == "rewrite")
 async def handle_rewrite(callback_query: types.CallbackQuery):
-    global last_collected_texts
+    global last_collected_text
     await bot.answer_callback_query(callback_query.id)
-    if last_collected_texts:
-        latest = last_collected_texts[-1]
-        alt_version = translate_and_adapt(latest)
+    if last_collected_text:
+        alt_version = translate_and_adapt(last_collected_text)
         await bot.send_message(callback_query.from_user.id, f"Вариант переформулировки:\n\n{alt_version}", reply_markup=post_actions_keyboard)
     else:
         await bot.send_message(callback_query.from_user.id, "Нет текста для редактирования.")
@@ -159,3 +162,4 @@ async def handle_post_vk(callback_query: types.CallbackQuery):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
