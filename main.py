@@ -66,6 +66,7 @@ def translate_and_adapt(text):
         data = response.json()
         return data["choices"][0]["message"]["content"].strip()
     else:
+        logging.error(f"Ошибка GPT: {response.text}")
         return "Ошибка при переводе/адаптации текста."
 
 @dp.message_handler(commands=["start", "menu"])
@@ -105,7 +106,8 @@ async def process_callback(callback_query: types.CallbackQuery):
         await bot.send_message(callback_query.from_user.id, "Ошибка при получении ответа от GPT.")
 
 last_collected_text = None
-recent_titles = []
+recent_titles = set()
+used_entries = set()
 RSS_FEEDS = [
     "https://www.glamour.ru/rss/news",
     "https://www.vogue.ru/rss.xml"
@@ -113,7 +115,7 @@ RSS_FEEDS = [
 
 @dp.callback_query_handler(lambda c: c.data == "collect")
 async def handle_collect(callback_query: types.CallbackQuery):
-    global last_collected_text, recent_titles
+    global last_collected_text, recent_titles, used_entries
     await bot.answer_callback_query(callback_query.id)
 
     all_entries = []
@@ -121,26 +123,28 @@ async def handle_collect(callback_query: types.CallbackQuery):
         feed = feedparser.parse(url)
         all_entries.extend(feed.entries)
 
-    fresh_news = [entry for entry in all_entries if entry.title not in recent_titles]
+    all_entries = sorted(all_entries, key=lambda e: e.get("published_parsed", datetime.datetime.min), reverse=True)
+    fresh_news = [entry for entry in all_entries if entry.title not in recent_titles and entry.title not in used_entries]
 
     if not fresh_news:
-        logging.info("Нет новых новостей — покажем старые.")
-        fresh_news = [entry for entry in all_entries if entry.title not in recent_titles[-50:]]
+        logging.info("Нет новых новостей — покажем самые свежие доступные.")
+        fresh_news = all_entries[:20]
 
     if not fresh_news:
         await bot.send_message(callback_query.from_user.id, "Нет новостей для отображения.")
         return
 
-    entry = random.choice(fresh_news)
+    entry = fresh_news[0]
     title = entry.title
     summary = getattr(entry, "summary", "")
     combined = f"{title}\n{summary}"
 
     adapted_text = translate_and_adapt(combined)
-    last_collected_text = adapted_text
-    recent_titles.append(title)
-    if len(recent_titles) > 50:
-        recent_titles = recent_titles[-50:]
+    last_collected_text = combined
+    recent_titles.add(title)
+    used_entries.add(title)
+    if len(recent_titles) > 100:
+        recent_titles = set(list(recent_titles)[-50:])
 
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}", reply_markup=post_actions_keyboard)
 
@@ -160,5 +164,5 @@ async def handle_post_vk(callback_query: types.CallbackQuery):
     await bot.send_message(callback_query.from_user.id, "🛠 Функция публикации в ВК находится в разработке.")
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    executor.start_polling(dp, skip_updates=False)
 
