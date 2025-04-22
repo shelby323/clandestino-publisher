@@ -52,13 +52,13 @@ def translate_and_adapt(text):
     if is_foreign(text):
         prompt = (
             "Переведи этот текст на русский язык и адаптируй его под стиль модного Telegram-канала: "
-            "лаконично, дерзко, эстетично, от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность.\n\n"
+            "лаконично, дерзко, эстетично, от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность, известных людей, знаменитостей и их образы.\n\n"
             f"{text}"
         )
     else:
         prompt = (
             "Сделай рерайт текста в стиле модного Telegram-канала: лаконично, дерзко, эстетично, "
-            "от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность.\n\n"
+            "от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность, известных людей, знаменитостей и их образы.\n\n"
             f"{text}"
         )
 
@@ -88,10 +88,10 @@ async def cmd_start(message: types.Message):
 async def process_callback(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
     prompt_map = {
-        "news": "Сделай короткий пост в стиле модного Telegram-канала: лаконично, дерзко, цепляюще. Тема — мода, знаменитости, весна 2025.",
-        "aesthetics": "Создай визуально вдохновляющий текст, как пост в эстетичном Instagram-аккаунте. Тема — стиль и атмосфера весны 2025.",
+        "news": "Сделай короткий пост в стиле модного Telegram-канала: лаконично, дерзко, цепляюще. Тема — мода, знаменитости, стиль, шоу-бизнес, весна 2025.",
+        "aesthetics": "Создай визуально вдохновляющий текст, как пост в эстетичном Instagram-аккаунте. Тема — стиль, мода, знаменитости, атмосфера весны 2025.",
         "quote": "Придумай короткую цитату от имени вымышленной знаменитости о стиле, весне и самоощущении. Без лишнего пафоса.",
-        "story": "Напиши короткую художественную историю на 3-5 предложений о девушке, которая влюбилась этой весной, в стиле дневника."
+        "story": "Напиши короткую художественную историю на 3-5 предложений о девушке или звезде шоу-бизнеса, которая влюбилась этой весной, в стиле дневника."
     }
     prompt = prompt_map[callback_query.data]
     response = requests.post(
@@ -117,12 +117,22 @@ last_collected_text = None
 recent_titles = set()
 used_entries = set()
 RSS_FEEDS = [
+    # Русскоязычные
     "https://www.glamour.ru/rss/news",
     "https://www.vogue.ru/rss.xml",
+    "https://www.elle.ru/rss.xml",
+    "https://www.kinopoisk.ru/media/news/rss.xml",
+
+    # Англоязычные
     "https://www.vogue.com/feed",
     "https://www.harpersbazaar.com/rss/all.xml",
     "https://www.lofficielusa.com/rss",
-    "https://www.wmagazine.com/rss"
+    "https://www.wmagazine.com/rss",
+    "https://people.com/feed",
+    "https://www.etonline.com/rss",
+    "https://www.nytimes.com/svc/collections/v1/publish/www.nytimes.com/section/style/rss.xml",
+    "https://www.gq.com/feed/rss",
+    "https://www.instyle.com/news/rss"
 ]
 
 @dp.callback_query_handler(lambda c: c.data == "collect")
@@ -150,7 +160,7 @@ async def handle_collect(callback_query: types.CallbackQuery):
         await bot.send_message(callback_query.from_user.id, "Нет новостей для отображения.")
         return
 
-    entry = fresh_news[0]
+    entry = random.choice(fresh_news)
     title = entry.title
     summary = getattr(entry, "summary", "")
     combined = f"{title}\n{summary}".strip()
@@ -159,8 +169,8 @@ async def handle_collect(callback_query: types.CallbackQuery):
     last_collected_text = combined
     recent_titles.add(title)
     used_entries.add(title)
-    if len(recent_titles) > 100:
-        recent_titles = set(list(recent_titles)[-50:])
+    if len(recent_titles) > 200:
+        recent_titles = set(list(recent_titles)[-100:])
 
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}", reply_markup=post_actions_keyboard)
 
