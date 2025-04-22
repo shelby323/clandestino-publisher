@@ -123,7 +123,10 @@ async def handle_collect(callback_query: types.CallbackQuery):
         feed = feedparser.parse(url)
         all_entries.extend(feed.entries)
 
-    all_entries = sorted(all_entries, key=lambda e: e.get("published_parsed", datetime.datetime.min), reverse=True)
+    all_entries = [e for e in all_entries if getattr(e, "title", "").strip() or getattr(e, "summary", "").strip()]
+    all_entries = sorted(all_entries, key=lambda e: getattr(e, "published_parsed", datetime.datetime.min), reverse=True)
+    logging.info(f"Собрано {len(all_entries)} записей из RSS-источников.")
+
     fresh_news = [entry for entry in all_entries if entry.title not in recent_titles and entry.title not in used_entries]
 
     if not fresh_news:
@@ -131,13 +134,14 @@ async def handle_collect(callback_query: types.CallbackQuery):
         fresh_news = all_entries[:20]
 
     if not fresh_news:
+        logging.warning("Не удалось найти даже старые новости.")
         await bot.send_message(callback_query.from_user.id, "Нет новостей для отображения.")
         return
 
     entry = fresh_news[0]
     title = entry.title
     summary = getattr(entry, "summary", "")
-    combined = f"{title}\n{summary}"
+    combined = f"{title}\n{summary}".strip()
 
     adapted_text = translate_and_adapt(combined)
     last_collected_text = combined
