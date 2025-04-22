@@ -116,17 +116,16 @@ async def handle_collect(callback_query: types.CallbackQuery):
     global last_collected_text, recent_titles
     await bot.answer_callback_query(callback_query.id)
 
-    fresh_news = []
+    all_entries = []
     for url in RSS_FEEDS:
         feed = feedparser.parse(url)
-        for entry in feed.entries:
-            if entry.title not in recent_titles:
-                fresh_news.append(entry)
+        all_entries.extend(feed.entries)
+
+    fresh_news = [entry for entry in all_entries if entry.title not in recent_titles]
 
     if not fresh_news:
-        for url in RSS_FEEDS:
-            feed = feedparser.parse(url)
-            fresh_news.extend(feed.entries)
+        logging.info("Нет новых новостей — покажем старые.")
+        fresh_news = [entry for entry in all_entries if entry.title not in recent_titles[-50:]]
 
     if not fresh_news:
         await bot.send_message(callback_query.from_user.id, "Нет новостей для отображения.")
@@ -140,8 +139,8 @@ async def handle_collect(callback_query: types.CallbackQuery):
     adapted_text = translate_and_adapt(combined)
     last_collected_text = adapted_text
     recent_titles.append(title)
-    if len(recent_titles) > 10:
-        recent_titles = recent_titles[-10:]
+    if len(recent_titles) > 50:
+        recent_titles = recent_titles[-50:]
 
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted_text}", reply_markup=post_actions_keyboard)
 
