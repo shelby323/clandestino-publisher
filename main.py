@@ -59,26 +59,33 @@ def sanitize_text(text):
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-BLOCKED_KEYWORDS = ["subscribe", "buy now", "lookbook", "collection", "sale", "shopping"]
+BLOCKED_KEYWORDS = [
+    "subscribe", "buy now", "lookbook", "collection", "sale", "shopping",
+    "gender equality", "diversity", "inclusion", "activism",
+    "hydrating sticks", "skin care", "косметика", "уход за кожей"
+]
 
+BLOCKED_NAMES = [
+    "TikTok", "OnlyFans", "local influencer", "рекламодатель", "бренд"
+]
 
 def is_advertisement(text):
     text = text.lower()
-    return any(keyword in text for keyword in BLOCKED_KEYWORDS)
+    return any(keyword in text for keyword in BLOCKED_KEYWORDS) or any(name.lower() in text for name in BLOCKED_NAMES)
 
 def translate_and_adapt(text):
     if is_foreign(text):
         prompt = (
             "Переведи текст на русский язык и адаптируй его под стиль модного Telegram-канала. "
-            "Только русский язык. Без HTML. Без английских слов. Без рекламных фраз. Напиши лаконично, стильно, 1–4 абзаца. "
-            "Фокус на визуальность, известных людей, образы, звёзд шоу-бизнеса. Удали мусор."
+            "Только русский язык. Без HTML. Без английских слов. Без рекламных фраз. Без упоминания малоизвестных персон. "
+            "Напиши лаконично, стильно, 1–4 абзаца. Удали мусор. Фокус — шоу-бизнес, мода, звезды высокого уровня."
             f"\n\n{text}"
         )
     else:
         prompt = (
             "Сделай рерайт текста в стиле модного Telegram-канала: лаконично, дерзко, эстетично, "
-            "от 1 до 4 абзацев, с фокусом на стиль, моду, визуальность, известных людей, знаменитостей и их образы. "
-            "Удали англоязычные фразы и элементы кода, оставь чистый русский текст."
+            "от 1 до 4 абзацев. Удали англоязычные фразы, HTML, рекламные элементы, малоизвестные имена. "
+            "Фокус — звезды, телеведущие, актеры, певцы, знаменитости мирового уровня."
             f"\n\n{text}"
         )
 
