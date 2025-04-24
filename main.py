@@ -41,6 +41,10 @@ user_cache = {}
 
 BLOCKED_KEYWORDS = ["реклама", "купить", "скидка", "подпишись", "бренд", "инфлюенсер"]
 BLOCKED_NAMES = ["TikTok", "OnlyFans", "local influencer", "рекламодатель", "бренд"]
+FOCUS_KEYWORDS = [
+    "звезда", "селебрити", "актёр", "певец", "певица", "шоубизнес", "шоу-бизнес", 
+    "модный показ", "интервью", "красная дорожка", "голливуд", "ведущая", "модель", "блогер", "блоггер"
+]
 
 RSS_FEEDS = [
     "https://www.elle.ru/rss/all/",
@@ -70,6 +74,10 @@ def sanitize_text(text):
 def is_advertisement(text):
     text = text.lower()
     return any(keyword in text for keyword in BLOCKED_KEYWORDS) or any(name.lower() in text for name in BLOCKED_NAMES)
+
+def is_on_topic(text):
+    text = text.lower()
+    return any(keyword in text for keyword in FOCUS_KEYWORDS)
 
 def translate_and_adapt(text):
     if is_foreign(text):
@@ -110,7 +118,7 @@ def parse_rss(category):
             text = clean_html(entry.get("summary", "") or entry.get("description", ""))
             title = entry.get("title", "")
             combined_text = f"{title}\n{text}"
-            if not is_advertisement(combined_text):
+            if not is_advertisement(combined_text) and is_on_topic(combined_text):
                 all_entries.append(combined_text)
     random.shuffle(all_entries)
     return all_entries
