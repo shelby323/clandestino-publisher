@@ -1,5 +1,3 @@
-# ⬇️ Полный код Telegram-бота с поддержкой разделов, фильтрацией и рерайтом новостей
-
 import os
 import logging
 import requests
@@ -41,12 +39,18 @@ post_actions_keyboard.add(
 
 user_cache = {}
 
-def log_interaction(data):
-    try:
-        with open("stats.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps(data, ensure_ascii=False) + "\n")
-    except Exception as e:
-        logging.error(f"Ошибка при логировании статистики: {e}")
+BLOCKED_KEYWORDS = ["реклама", "купить", "скидка", "подпишись", "бренд", "инфлюенсер"]
+BLOCKED_NAMES = ["TikTok", "OnlyFans", "local influencer", "рекламодатель", "бренд"]
+
+RSS_FEEDS = [
+    "https://www.elle.ru/rss/all/",
+    "https://www.harpersbazaar.com/rss/",
+    "https://www.vogue.com/feed/rss",
+    "https://people.com/feed/",
+    "https://www.hollywoodreporter.com/t/feed/",
+    "https://www.glamourmagazine.co.uk/rss",
+    "https://www.etonline.com/news/rss"
+]
 
 def is_foreign(text):
     try:
@@ -54,46 +58,33 @@ def is_foreign(text):
     except:
         return False
 
-def clean_html(raw_html):
-    return BeautifulSoup(raw_html, "html.parser").get_text()
+def clean_html(text):
+    soup = BeautifulSoup(text, "html.parser")
+    return soup.get_text()
 
 def sanitize_text(text):
-    text = clean_html(text)
-    text = re.sub(r"http\S+", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
     return text
-
-BLOCKED_KEYWORDS = [
-    "subscribe", "buy now", "lookbook", "collection", "sale", "shopping",
-    "gender equality", "diversity", "inclusion", "activism",
-    "hydrating sticks", "skin care", "косметика", "уход за кожей"
-]
-
-BLOCKED_NAMES = [
-    "TikTok", "OnlyFans", "local influencer", "рекламодатель", "бренд"
-]
 
 def is_advertisement(text):
     text = text.lower()
     return any(keyword in text for keyword in BLOCKED_KEYWORDS) or any(name.lower() in text for name in BLOCKED_NAMES)
 
-def translate_and_adapt(text, category=None):
-    style_intro = {
-        "news": "Сделай новостной рерайт в стиле модного Telegram-канала:",
-        "aesthetics": "Сделай эстетичный, дерзкий и вдохновляющий рерайт:",
-        "quote": "Оформи как сильную цитату звезды:",
-        "story": "Сделай лёгкую и увлекательную историю:",
-        None: "Адаптируй под стиль Telegram-канала:"
-    }.get(category, "Адаптируй под стиль Telegram-канала:")
-
+def translate_and_adapt(text):
     if is_foreign(text):
         prompt = (
-            f"Переведи текст на русский язык и адаптируй его. Только русский язык. Без HTML. Без англоязычных слов. Без рекламы и малоизвестных имён. "
-            f"Фокус — звёзды и мода. {style_intro}\n\n{text}"
+            "Переведи текст на русский язык и адаптируй его под стиль модного Telegram-канала. "
+            "Только русский язык. Без HTML. Без рекламных фраз. Без упоминания малоизвестных персон. "
+            "Напиши лаконично, стильно, 1-4 абзаца. Удали мусор. Фокус — шоу-бизнес, мода, звезды высокого уровня."
+            f"\n\n{text}"
         )
     else:
         prompt = (
-            f"{style_intro} Лаконично, эстетично, 1–4 абзаца. Удали мусор, англоязычные слова, HTML, малоизвестных людей.\n\n{text}"
+            "Сделай рерайт текста в стиле модного Telegram-канала лаконично, дерзко, эстетично, "
+            "от 1 до 4 абзацев. Удали англоязычные фразы, HTML, рекламные элементы, малоизвестные имена. "
+            "Фокус = звезды, телеведущие, актеры, певцы, знаменитости мирового уровня."
+            f"\n\n{text}"
         )
 
     response = requests.post(
@@ -111,8 +102,48 @@ def translate_and_adapt(text, category=None):
         logging.error(f"Ошибка GPT: {response.text}")
         return "Ошибка при переводе/адаптации текста."
 
-@dp.message_handler(commands=["start"])
-async def start_handler(message: types.Message):
+def parse_rss(category):
+    all_entries = []
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
+        for entry in feed.entries:
+            text = clean_html(entry.get("summary", "") or entry.get("description", ""))
+            title = entry.get("title", "")
+            combined_text = f"{title}\n{text}"
+            if not is_advertisement(combined_text):
+                all_entries.append(combined_text)
+    random.shuffle(all_entries)
+    return all_entries
+
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
     await message.answer("Выбери тип поста:", reply_markup=menu_keyboard)
 
-executor.start_polling(dp, skip_updates=True)
+@dp.callback_query_handler(lambda c: c.data in ["news", "aesthetics", "quote", "story"])
+async def handle_category(callback_query: types.CallbackQuery):
+    category = callback_query.data
+    await bot.answer_callback_query(callback_query.id)
+
+    all_texts = parse_rss(category)
+    if not all_texts:
+        await bot.send_message(callback_query.from_user.id, "Нет подходящих новостей")
+        return
+
+    adapted = translate_and_adapt(all_texts[0])
+    user_cache[callback_query.from_user.id] = all_texts[1:]
+
+    await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted}", reply_markup=post_actions_keyboard)
+
+@dp.callback_query_handler(lambda c: c.data == "next_post")
+async def handle_next(callback_query: types.CallbackQuery):
+    cache = user_cache.get(callback_query.from_user.id, [])
+    if not cache:
+        await bot.send_message(callback_query.from_user.id, "Новостей больше нет. Попробуй снова позже.")
+        return
+    next_text = cache.pop(0)
+    user_cache[callback_query.from_user.id] = cache
+    adapted = translate_and_adapt(next_text)
+    await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted}", reply_markup=post_actions_keyboard)
+
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
