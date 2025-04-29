@@ -82,14 +82,14 @@ def is_on_topic(text):
 def translate_and_adapt(text):
     if is_foreign(text):
         prompt = (
-            "Переведи текст на русский язык и адаптируй его под стиль модного Telegram-канала. "
+            "Переведи текст на русский язык и адаптируй его под стиль современной VK-группы о звездах и моде. "
             "Только русский язык. Без HTML. Без рекламных фраз. Без упоминания малоизвестных персон. "
             "Напиши лаконично, стильно, 1-4 абзаца. Удали мусор. Фокус — шоу-бизнес, мода, звезды высокого уровня."
             f"\n\n{text}"
         )
     else:
         prompt = (
-            "Сделай рерайт текста в стиле модного Telegram-канала лаконично, дерзко, эстетично, "
+            "Сделай рерайт текста в стиле популярной VK-группы: лаконично, дерзко, эстетично, "
             "от 1 до 4 абзацев. Удали англоязычные фразы, HTML, рекламные элементы, малоизвестные имена. "
             "Фокус = звезды, телеведущие, актеры, певцы, знаменитости мирового уровня."
             f"\n\n{text}"
@@ -121,7 +121,6 @@ def parse_rss(category):
             if not is_advertisement(combined_text) and (is_on_topic(combined_text) or category != "news"):
                 all_entries.append(combined_text)
     if not all_entries and category == "news":
-        # fallback: показать всё, что не реклама
         for url in RSS_FEEDS:
             feed = feedparser.parse(url)
             for entry in feed.entries:
@@ -165,4 +164,5 @@ async def handle_next(callback_query: types.CallbackQuery):
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
+
 
