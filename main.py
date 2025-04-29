@@ -40,10 +40,10 @@ post_actions_keyboard.add(
 user_cache = {}
 
 BLOCKED_KEYWORDS = ["реклама", "купить", "скидка", "подпишись", "бренд", "инфлюенсер"]
-BLOCKED_NAMES = ["TikTok", "OnlyFans", "local influencer", "рекламодатель", "бренд"]
+BLOCKED_NAMES = ["local influencer", "рекламодатель", "бренд"]
 FOCUS_KEYWORDS = [
-    "звезда", "селебрити", "актёр", "певец", "певица", "шоубизнес", "шоу-бизнес", 
-    "модный показ", "интервью", "красная дорожка", "голливуд", "ведущая", "модель", "блогер", "блоггер"
+    "звезда", "селебрити", "актёр", "певец", "певица", "шоубизнес", "шоу-бизнес",
+    "модный показ", "интервью", "красная дорожка", "голливуд", "ведущая", "модель", "блогер"
 ]
 
 RSS_FEEDS = [
@@ -118,8 +118,18 @@ def parse_rss(category):
             text = clean_html(entry.get("summary", "") or entry.get("description", ""))
             title = entry.get("title", "")
             combined_text = f"{title}\n{text}"
-            if not is_advertisement(combined_text) and is_on_topic(combined_text):
+            if not is_advertisement(combined_text) and (is_on_topic(combined_text) or category != "news"):
                 all_entries.append(combined_text)
+    if not all_entries and category == "news":
+        # fallback: показать всё, что не реклама
+        for url in RSS_FEEDS:
+            feed = feedparser.parse(url)
+            for entry in feed.entries:
+                text = clean_html(entry.get("summary", "") or entry.get("description", ""))
+                title = entry.get("title", "")
+                combined_text = f"{title}\n{text}"
+                if not is_advertisement(combined_text):
+                    all_entries.append(combined_text)
     random.shuffle(all_entries)
     return all_entries
 
@@ -155,3 +165,4 @@ async def handle_next(callback_query: types.CallbackQuery):
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
+
