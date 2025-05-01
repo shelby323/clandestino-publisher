@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 
 menu_keyboard = InlineKeyboardMarkup(row_width=2)
 menu_keyboard.add(
-    InlineKeyboardButton("🔖 Новости", callback_data="news"),
+    InlineKeyboardButton("📰 Новости", callback_data="news"),
     InlineKeyboardButton("🎨 Эстетика", callback_data="aesthetics"),
     InlineKeyboardButton("✨ Цитата", callback_data="quote"),
     InlineKeyboardButton("💬 История", callback_data="story")
@@ -79,20 +79,37 @@ def is_on_topic(text):
     text = text.lower()
     return any(keyword in text for keyword in FOCUS_KEYWORDS)
 
-def translate_and_adapt(text):
+def translate_and_adapt(text, category="news"):
     if is_foreign(text):
         prompt = (
-            "Переведи текст на русский язык и адаптируй его под стиль современной VK-группы. "
-            "Только русский язык. Без HTML. Без рекламы. Без малоизвестных. "
-            "Лаконично, стильно, 1-4 абзаца. \n\n"
-            f"{text}"
+            "Переведи текст на русский язык и адаптируй его под стиль современной VK-группы о звездах и моде. "
+            "Только русский язык. Без HTML. Без рекламных фраз. Без упоминания малоизвестных персон. "
+            "Напиши лаконично, стильно, 1-4 абзаца. Удали мусор. Фокус — шоу-бизнес, мода, звезды высокого уровня."
+            f"\n\n{text}"
         )
     else:
-        prompt = (
-            "Сделай рерайт для современной VK-группы: стильно, лаконично, 1-4 абзаца. "
-            "Удали англицизмы, рекламу, HTML. Фокус: стиль звезд, шоу-бизнес. \n\n"
-            f"{text}"
-        )
+        if category == "quote":
+            prompt = (
+                "Сделай рерайт цитаты от имени звезды. Сохрани стиль, харизму, краткость. Без HTML, без англоязычных слов."
+                f"\n\n{text}"
+            )
+        elif category == "aesthetics":
+            prompt = (
+                "Опиши эстетику фото или события в духе модной VK-группы. Сохрани образность и атмосферу. Без HTML."
+                f"\n\n{text}"
+            )
+        elif category == "story":
+            prompt = (
+                "Перепиши эту историю, сделай её захватывающей и лаконичной. Подходит для поста в VK-группу о шоу-бизнесе."
+                f"\n\n{text}"
+            )
+        else:
+            prompt = (
+                "Сделай рерайт текста в стиле популярной VK-группы: лаконично, дерзко, эстетично, "
+                "от 1 до 4 абзацев. Удали англоязычные фразы, HTML, рекламные элементы, малоизвестные имена. "
+                "Фокус = звезды, телеведущие, актеры, певцы, знаменитости мирового уровня."
+                f"\n\n{text}"
+            )
 
     response = requests.post(
         PROXY_URL,
@@ -145,23 +162,38 @@ async def handle_category(callback_query: types.CallbackQuery):
         await bot.send_message(callback_query.from_user.id, "Нет подходящих новостей")
         return
 
-    adapted = translate_and_adapt(all_texts[0])
-    user_cache[callback_query.from_user.id] = all_texts[1:]
+    adapted = translate_and_adapt(all_texts[0], category)
+    user_cache[callback_query.from_user.id] = {"texts": all_texts[1:], "category": category}
 
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted}", reply_markup=post_actions_keyboard)
 
 @dp.callback_query_handler(lambda c: c.data == "next_post")
 async def handle_next(callback_query: types.CallbackQuery):
-    cache = user_cache.get(callback_query.from_user.id, [])
-    if not cache:
+    cache = user_cache.get(callback_query.from_user.id, {})
+    texts = cache.get("texts", [])
+    category = cache.get("category", "news")
+    if not texts:
         await bot.send_message(callback_query.from_user.id, "Новостей больше нет. Попробуй снова позже.")
         return
-    next_text = cache.pop(0)
-    user_cache[callback_query.from_user.id] = cache
-    adapted = translate_and_adapt(next_text)
+    next_text = texts.pop(0)
+    user_cache[callback_query.from_user.id] = {"texts": texts, "category": category}
+    adapted = translate_and_adapt(next_text, category)
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted}", reply_markup=post_actions_keyboard)
 
+@dp.callback_query_handler(lambda c: c.data == "rewrite")
+async def handle_rewrite(callback_query: types.CallbackQuery):
+    cache = user_cache.get(callback_query.from_user.id, {})
+    texts = cache.get("texts", [])
+    category = cache.get("category", "news")
+    if not texts:
+        await bot.send_message(callback_query.from_user.id, "Нечего переписать.")
+        return
+    original = texts[0]
+    rewritten = translate_and_adapt(original, category)
+    await bot.send_message(callback_query.from_user.id, f"Вариант переформулировки:\n\n{rewritten}", reply_markup=post_actions_keyboard)
+
 if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
     executor.start_polling(dp, skip_updates=True)
 
 
