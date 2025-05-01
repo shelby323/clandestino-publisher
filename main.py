@@ -27,7 +27,8 @@ menu_keyboard.add(
     InlineKeyboardButton("📰 Новости", callback_data="news"),
     InlineKeyboardButton("🎨 Эстетика", callback_data="aesthetics"),
     InlineKeyboardButton("✨ Цитата", callback_data="quote"),
-    InlineKeyboardButton("💬 История", callback_data="story")
+    InlineKeyboardButton("💬 История", callback_data="story"),
+    InlineKeyboardButton("📊 Статистика/Анализ", callback_data="stats")
 )
 
 post_actions_keyboard = InlineKeyboardMarkup(row_width=2)
@@ -82,7 +83,7 @@ def is_on_topic(text):
 def translate_and_adapt(text, category="news"):
     if is_foreign(text):
         prompt = (
-            "Переведи текст на русский язык и адаптируй его под стиль современной VK-группы о звездах и моде. "
+            "Переведи текст на русский язык и адаптируй его под стиль популярной VK-группы о звездах, моде и шоу-бизнесе. "
             "Только русский язык. Без HTML. Без рекламных фраз. Без упоминания малоизвестных персон. "
             "Напиши лаконично, стильно, 1-4 абзаца. Удали мусор. Фокус — шоу-бизнес, мода, звезды высокого уровня."
             f"\n\n{text}"
@@ -95,7 +96,7 @@ def translate_and_adapt(text, category="news"):
             )
         elif category == "aesthetics":
             prompt = (
-                "Опиши эстетику фото или события в духе модной VK-группы. Сохрани образность и атмосферу. Без HTML."
+                "Опиши эстетику фото или события в духе популярной VK-группы. Сохрани образность и атмосферу. Без HTML."
                 f"\n\n{text}"
             )
         elif category == "story":
@@ -163,7 +164,7 @@ async def handle_category(callback_query: types.CallbackQuery):
         return
 
     adapted = translate_and_adapt(all_texts[0], category)
-    user_cache[callback_query.from_user.id] = {"texts": all_texts[1:], "category": category}
+    user_cache[callback_query.from_user.id] = {"texts": all_texts, "category": category, "current": all_texts[0]}
 
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted}", reply_markup=post_actions_keyboard)
 
@@ -176,24 +177,27 @@ async def handle_next(callback_query: types.CallbackQuery):
         await bot.send_message(callback_query.from_user.id, "Новостей больше нет. Попробуй снова позже.")
         return
     next_text = texts.pop(0)
-    user_cache[callback_query.from_user.id] = {"texts": texts, "category": category}
+    user_cache[callback_query.from_user.id] = {"texts": texts, "category": category, "current": next_text}
     adapted = translate_and_adapt(next_text, category)
     await bot.send_message(callback_query.from_user.id, f"Собран текст:\n\n{adapted}", reply_markup=post_actions_keyboard)
 
 @dp.callback_query_handler(lambda c: c.data == "rewrite")
 async def handle_rewrite(callback_query: types.CallbackQuery):
     cache = user_cache.get(callback_query.from_user.id, {})
-    texts = cache.get("texts", [])
+    original = cache.get("current")
     category = cache.get("category", "news")
-    if not texts:
+    if not original:
         await bot.send_message(callback_query.from_user.id, "Нечего переписать.")
         return
-    original = texts[0]
     rewritten = translate_and_adapt(original, category)
     await bot.send_message(callback_query.from_user.id, f"Вариант переформулировки:\n\n{rewritten}", reply_markup=post_actions_keyboard)
 
+@dp.callback_query_handler(lambda c: c.data == "stats")
+async def handle_stats(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, "📊 Функция анализа и статистики находится в разработке. Ожидайте обновлений!")
+
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
     executor.start_polling(dp, skip_updates=True)
 
 
