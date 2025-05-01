@@ -17,6 +17,8 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OWNER_IDS = {int(i) for i in os.getenv("OWNER_IDS", "").split(",") if i.strip().isdigit()}
 PROXY_URL = os.getenv("PROXY_URL", "https://clandestino-proxy.onrender.com/v1/chat/completions")
+VK_TOKEN = os.getenv("VK_TOKEN")
+VK_GROUP_ID = os.getenv("VK_GROUP_ID")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
@@ -149,6 +151,18 @@ def parse_rss(category):
     random.shuffle(all_entries)
     return all_entries
 
+def post_to_vk(text):
+    url = "https://api.vk.com/method/wall.post"
+    params = {
+        "access_token": VK_TOKEN,
+        "owner_id": f"-{VK_GROUP_ID}",
+        "from_group": 1,
+        "message": text,
+        "v": "5.199"
+    }
+    response = requests.post(url, params=params)
+    return response.json()
+
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     await message.answer("Выбери тип поста:", reply_markup=menu_keyboard)
@@ -191,6 +205,27 @@ async def handle_rewrite(callback_query: types.CallbackQuery):
         return
     rewritten = translate_and_adapt(original, category)
     await bot.send_message(callback_query.from_user.id, f"Вариант переформулировки:\n\n{rewritten}", reply_markup=post_actions_keyboard)
+
+@dp.callback_query_handler(lambda c: c.data == "post_vk")
+async def handle_post_vk(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    user_id = callback_query.from_user.id
+    cache = user_cache.get(user_id, {})
+    current_text = cache.get("current")
+    category = cache.get("category", "news")
+
+    if not current_text:
+        await bot.send_message(user_id, "Нет текста для публикации.")
+        return
+
+    adapted = translate_and_adapt(current_text, category)
+    result = post_to_vk(adapted)
+
+    if "response" in result:
+        await bot.send_message(user_id, "✅ Пост успешно опубликован во ВКонтакте!")
+    else:
+        error = result.get("error", {}).get("error_msg", "Неизвестная ошибка")
+        await bot.send_message(user_id, f"❌ Ошибка публикации: {error}")
 
 @dp.callback_query_handler(lambda c: c.data == "stats")
 async def handle_stats(callback_query: types.CallbackQuery):
