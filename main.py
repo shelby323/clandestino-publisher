@@ -59,6 +59,12 @@ def fetch_random_entry():
         if len(content) < 200:
             attempts += 1
             continue
+        if content.count("?") > 2 or content.endswith("?"):
+            attempts += 1
+            continue
+        if re.search(r'(how|why|what|where|when|who).*\?', content.lower()):
+            attempts += 1
+            continue
         try:
             lang = detect(content)
             if lang != 'ru' and lang != 'en':
@@ -103,6 +109,7 @@ def publish_to_vk(text):
     }
     response = requests.post(url, params=params)
     return response.json()
+
 
 
 
