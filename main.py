@@ -46,6 +46,11 @@ RSS_FEEDS = [
 ]
 
 BLOCKED_KEYWORDS = ["unsubscribe", "newsletter", "cookie", "advertising", "privacy"]
+ALLOWED_KEYWORDS = [
+    "звезда", "стиль", "мода", "лук", "премия", "актриса", "актёр", "артист", "режиссёр",
+    "интервью", "кинопремьера", "гламур", "вечеринка", "подиум", "дизайнер", "показ", "инфлюенсер",
+    "бренд", "индустрия моды", "журнал", "образ"
+]
 
 user_cache = {}
 
@@ -98,7 +103,7 @@ async def handle_post_actions(callback_query: types.CallbackQuery):
             await callback_query.message.edit_text(f"❌ Ошибка публикации: {response}")
 
 def fetch_random_entry():
-    max_attempts = 10
+    max_attempts = 20
     attempts = 0
     while attempts < max_attempts:
         feed_url = random.choice(RSS_FEEDS)
@@ -107,28 +112,34 @@ def fetch_random_entry():
         if not entries:
             attempts += 1
             continue
+
         entry = random.choice(entries)
-        content = entry.get("summary") or entry.get("description") or entry.get("title")
+        title = entry.get("title", "")
+        content = entry.get("summary") or entry.get("description") or title
         content = BeautifulSoup(content, "html.parser").get_text().strip()
 
-        if len(content) < 200 or any(bad in content.lower() for bad in BLOCKED_KEYWORDS):
+        full_text = f"{title}. {content}"
+        lower_text = full_text.lower()
+
+        if not any(word in lower_text for word in ALLOWED_KEYWORDS):
             attempts += 1
             continue
-        if content.count("?") > 2 or content.endswith("?"):
+        if len(full_text) < 150:
             attempts += 1
             continue
-        if re.search(r'\b(how|why|what|where|when|who)\b.*\?', content.lower()):
+        if any(bad in lower_text for bad in BLOCKED_KEYWORDS):
             attempts += 1
             continue
         try:
-            lang = detect(content)
+            lang = detect(full_text)
             if lang not in ['ru', 'en']:
                 attempts += 1
                 continue
         except:
             attempts += 1
             continue
-        return content
+
+        return full_text.strip()
     return ""
 
 def generate_post(prompt_text, category="news"):
@@ -170,7 +181,6 @@ def publish_to_vk(text):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
-
 
 
 
