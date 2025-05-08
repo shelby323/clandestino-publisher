@@ -40,6 +40,58 @@ RSS_FEEDS = [
     "https://www.elle.com/rss/all.xml"
 ]
 
+BLOCKED_KEYWORDS = ["unsubscribe", "newsletter", "cookie", "advertising", "privacy"]
+
+user_cache = {}
+
+@dp.message_handler(commands=["start"])
+async def start(message: types.Message):
+    if message.from_user.id in OWNER_IDS:
+        await message.answer("Выбери тип поста:", reply_markup=menu_keyboard)
+
+@dp.callback_query_handler(lambda c: c.data in ["news", "quote", "aesthetic", "story", "stats"])
+async def process_callback(callback_query: types.CallbackQuery):
+    action = callback_query.data
+    if action == "stats":
+        await callback_query.message.edit_text("📊 В разработке: статистика будет здесь.", reply_markup=menu_keyboard)
+        return
+
+    raw = fetch_random_entry()
+    if not raw:
+        await callback_query.message.edit_text("😢 Не удалось найти подходящий материал. Попробуй еще.", reply_markup=menu_keyboard)
+        return
+
+    rewritten = generate_post(raw, category=action)
+    if not rewritten:
+        await callback_query.message.edit_text("⚠️ Ошибка генерации поста. Попробуй еще раз.", reply_markup=menu_keyboard)
+        return
+
+    user_cache[callback_query.from_user.id] = rewritten
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("✏️ Редактировать", callback_data="edit"),
+        InlineKeyboardButton("📤 Опубликовать в VK", callback_data="publish"),
+        InlineKeyboardButton("🔄 Хочу ещё", callback_data=action)
+    )
+    await callback_query.message.edit_text(f"Собран текст:\n\n{rewritten}", reply_markup=keyboard)
+
+@dp.callback_query_handler(lambda c: c.data in ["edit", "publish"])
+async def handle_post_actions(callback_query: types.CallbackQuery):
+    uid = callback_query.from_user.id
+    cached = user_cache.get(uid)
+    if not cached:
+        await callback_query.message.edit_text("⚠️ Нет текста для обработки.")
+        return
+
+    if callback_query.data == "edit":
+        await callback_query.message.edit_text(f"Редактируй текст и пришли обратно:\n\n{cached}")
+    elif callback_query.data == "publish":
+        response = publish_to_vk(cached)
+        if "response" in response:
+            await callback_query.message.edit_text("✅ Пост успешно опубликован во ВКонтакте!")
+        else:
+            await callback_query.message.edit_text(f"❌ Ошибка публикации: {response}")
+
 def fetch_random_entry():
     max_attempts = 10
     attempts = 0
@@ -55,27 +107,24 @@ def fetch_random_entry():
         content = BeautifulSoup(content, "html.parser").get_text()
         content = content.strip()
 
-        # Фильтрация по языку и длине
-        if len(content) < 200:
+        if len(content) < 200 or any(bad in content.lower() for bad in BLOCKED_KEYWORDS):
             attempts += 1
             continue
         if content.count("?") > 2 or content.endswith("?"):
             attempts += 1
             continue
-        if re.search(r'(how|why|what|where|when|who).*\?', content.lower()):
+        if re.search(r'\b(how|why|what|where|when|who)\b.*\?', content.lower()):
             attempts += 1
             continue
         try:
             lang = detect(content)
-            if lang != 'ru' and lang != 'en':
+            if lang not in ['ru', 'en']:
                 attempts += 1
                 continue
         except:
             attempts += 1
             continue
-
         return content
-
     return ""
 
 def generate_post(prompt_text, category="news"):
@@ -88,7 +137,7 @@ def generate_post(prompt_text, category="news"):
     }
     headers = {"Content-Type": "application/json"}
     payload = {
-        "model": "gpt-3.5-turbo",
+        "model": "gpt-4",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt_map.get(category, prompt_text)}
@@ -110,6 +159,8 @@ def publish_to_vk(text):
     response = requests.post(url, params=params)
     return response.json()
 
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
 
 
 
