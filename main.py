@@ -52,6 +52,13 @@ ALLOWED_KEYWORDS = [
     "бренд", "индустрия моды", "журнал", "образ"
 ]
 
+CATEGORY_KEYWORDS = {
+    "quote": ["мнение", "колонка", "эссе", "размышление", "интервью", "editorial", "manifest"],
+    "news": ["звезда", "скандал", "светская хроника", "интервью", "анонс", "тема дня", "обсуждение", "журнал", "заявление", "нашумевший", "вышел", "опубликовал", "новость", "объявил", "показал", "сообщил"],
+    "aesthetic": ["лук", "стиль", "мода", "визуал", "образ", "арт"],
+    "story": ["жизнь", "судьба", "история", "путь", "биография"]
+}
+
 user_cache = {}
 
 @dp.message_handler(commands=["start"])
@@ -66,7 +73,7 @@ async def process_callback(callback_query: types.CallbackQuery):
         await callback_query.message.edit_text("📊 В разработке: статистика будет здесь.", reply_markup=menu_keyboard)
         return
 
-    raw = fetch_random_entry()
+    raw = fetch_random_entry(category=action)
     if not raw:
         await callback_query.message.edit_text("😢 Не удалось найти подходящий материал. Попробуй еще.", reply_markup=menu_keyboard)
         return
@@ -102,9 +109,11 @@ async def handle_post_actions(callback_query: types.CallbackQuery):
         else:
             await callback_query.message.edit_text(f"❌ Ошибка публикации: {response}")
 
-def fetch_random_entry():
+def fetch_random_entry(category="news"):
     max_attempts = 20
     attempts = 0
+    keywords = CATEGORY_KEYWORDS.get(category, ALLOWED_KEYWORDS)
+
     while attempts < max_attempts:
         feed_url = random.choice(RSS_FEEDS)
         feed = feedparser.parse(feed_url)
@@ -121,7 +130,7 @@ def fetch_random_entry():
         full_text = f"{title}. {content}"
         lower_text = full_text.lower()
 
-        if not any(word in lower_text for word in ALLOWED_KEYWORDS):
+        if not any(word in lower_text for word in keywords):
             attempts += 1
             continue
         if len(full_text) < 150:
@@ -181,6 +190,7 @@ def publish_to_vk(text):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
 
 
 
