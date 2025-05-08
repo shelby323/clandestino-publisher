@@ -26,18 +26,23 @@ logging.basicConfig(level=logging.INFO)
 
 menu_keyboard = InlineKeyboardMarkup(row_width=2)
 menu_keyboard.add(
-    InlineKeyboardButton("📰 Новость", callback_data="news"),
-    InlineKeyboardButton("🧠 Цитата", callback_data="quote"),
-    InlineKeyboardButton("💫 Эстетика", callback_data="aesthetic"),
-    InlineKeyboardButton("🎬 История", callback_data="story"),
-    InlineKeyboardButton("📊 Статистика", callback_data="stats")
+    InlineKeyboardButton("🧩 Контекст", callback_data="news"),
+    InlineKeyboardButton("💬 Манифест", callback_data="quote"),
+    InlineKeyboardButton("📸 Образ", callback_data="aesthetic"),
+    InlineKeyboardButton("🎭 Сцена", callback_data="story"),
+    InlineKeyboardButton("📈 Отклик", callback_data="stats")
 )
 
 RSS_FEEDS = [
     "https://www.harpersbazaar.com/rss/celebrity-news.xml",
     "https://www.vogue.com/feed/rss",
     "https://people.com/feed/",
-    "https://www.elle.com/rss/all.xml"
+    "https://www.elle.com/rss/all.xml",
+    "https://www.glamour.ru/rss/all",
+    "https://www.cosmo.ru/rss/all.xml",
+    "https://esquire.ru/rss.xml",
+    "https://snob.ru/feed/rss/",
+    "https://style.rbc.ru/rss/full/"
 ]
 
 BLOCKED_KEYWORDS = ["unsubscribe", "newsletter", "cookie", "advertising", "privacy"]
@@ -47,7 +52,7 @@ user_cache = {}
 @dp.message_handler(commands=["start"])
 async def start(message: types.Message):
     if message.from_user.id in OWNER_IDS:
-        await message.answer("Выбери тип поста:", reply_markup=menu_keyboard)
+        await message.answer("📍 Выбери формат нового поста:", reply_markup=menu_keyboard)
 
 @dp.callback_query_handler(lambda c: c.data in ["news", "quote", "aesthetic", "story", "stats"])
 async def process_callback(callback_query: types.CallbackQuery):
@@ -104,8 +109,7 @@ def fetch_random_entry():
             continue
         entry = random.choice(entries)
         content = entry.get("summary") or entry.get("description") or entry.get("title")
-        content = BeautifulSoup(content, "html.parser").get_text()
-        content = content.strip()
+        content = BeautifulSoup(content, "html.parser").get_text().strip()
 
         if len(content) < 200 or any(bad in content.lower() for bad in BLOCKED_KEYWORDS):
             attempts += 1
@@ -128,13 +132,18 @@ def fetch_random_entry():
     return ""
 
 def generate_post(prompt_text, category="news"):
-    system_prompt = "Ты создаешь модные, лаконичные, визуально привлекательные посты во ВКонтакте для паблика про стиль, искусство и знаменитостей."
+    system_prompt = (
+        "Ты создаешь короткие, мощные и стильные посты для социальной сети ВКонтакте — в духе интеллектуального глянца. "
+        "Пиши ярко, дерзко, с пафосом, но современно. Не повторяй новость, а превращай её в мини-эссе, размышление или обращение."
+    )
+
     user_prompt_map = {
-        "news": f"Сделай из этой новости законченный пост с дерзким стилем, хэштегами, с 2–4 абзацами:\n{prompt_text}",
-        "quote": f"Оформи это как пост с цитатой звезды, добавь эмоциональное вступление и дерзкий тон:\n{prompt_text}",
-        "aesthetic": f"Сделай стильный пост в эстетике глянца и моды, вдохновляющий и визуальный:\n{prompt_text}",
-        "story": f"Сделай интересную историю о знаменитости, поданную живо и красиво, как для глянцевого журнала:\n{prompt_text}"
+        "news": f"Преврати это в выразительный пост: добавь стиль, контекст и ироничную подачу. Как колонка в Esquire, но для VK:\n{prompt_text}",
+        "quote": f"Оформи этот фрагмент как дерзкую цитату-заявление. Добавь вступление и завершение, создай атмосферу:\n{prompt_text}",
+        "aesthetic": f"Сделай вдохновляющий пост в духе эстетики: как визуальная фантазия, как стильная зарисовка:\n{prompt_text}",
+        "story": f"Напиши эту историю как мини-новеллу: с драмой, пафосом, дерзостью и финальной мыслью:\n{prompt_text}"
     }
+
     headers = {"Content-Type": "application/json"}
     payload = {
         "model": "gpt-4",
@@ -161,6 +170,7 @@ def publish_to_vk(text):
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
+
 
 
 
